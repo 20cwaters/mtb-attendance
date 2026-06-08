@@ -22,6 +22,12 @@ router.post("/login", async (req: Request, res: Response) => {
         .json({ error: "Invalid credentials", code: "UNAUTHORIZED" });
       return;
     }
+    if (coach.role === "deactivated") {
+      res
+        .status(403)
+        .json({ error: "Coach is deactivated", code: "FORBIDDEN" });
+      return;
+    }
 
     res.json({
       coachId: coach.id,

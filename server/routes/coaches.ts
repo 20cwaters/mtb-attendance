@@ -12,7 +12,9 @@ const router = Router();
 router.get("/", async (_req: Request, res: Response) => {
   try {
     const coaches = await readSheet("coaches");
-    const safe = coaches.map(({ pin, ...rest }) => rest);
+    const safe = coaches
+      .filter((c) => c.role !== "deactivated")
+      .map(({ pin, ...rest }) => rest);
     res.json(safe);
   } catch (err) {
     console.error("Get coaches error:", err);
@@ -25,7 +27,9 @@ router.get("/", async (_req: Request, res: Response) => {
 router.get("/with-names", async (_req: Request, res: Response) => {
   try {
     const coaches = await readSheet("coaches");
-    const names = coaches.map((c) => ({ id: c.id, name: c.name }));
+    const names = coaches
+      .filter((c) => c.role !== "deactivated")
+      .map((c) => ({ id: c.id, name: c.name }));
     res.json(names);
   } catch (err) {
     console.error("Get coach names error:", err);
@@ -51,10 +55,10 @@ router.post("/", requireHeadCoach, async (req: Request, res: Response) => {
       name,
       email: email || "",
       pin,
-      role: role || "coach",
+      role: role || "coach_lv2",
     });
 
-    res.status(201).json({ id, name, email, role: role || "coach" });
+    res.status(201).json({ id, name, email, role: role || "coach_lv2" });
   } catch (err) {
     console.error("Add coach error:", err);
     res

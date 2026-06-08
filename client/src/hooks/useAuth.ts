@@ -26,5 +26,8 @@ export function useAuth() {
     setAuth(null);
   }, []);
 
-  return { auth, login, logout, isHeadCoach: auth?.role === "head_coach" };
+  const isHeadCoach =
+    auth?.role === "head_coach" || auth?.role === "team_director";
+
+  return { auth, login, logout, isHeadCoach };
 }

@@ -5,6 +5,23 @@ import Modal from "../components/Modal";
 import { TableSkeleton } from "../components/Skeleton";
 import toast from "react-hot-toast";
 
+const COACH_ROLES = [
+  { value: "head_coach", label: "Head Coach" },
+  { value: "team_director", label: "Team Director" },
+  { value: "parent_rider", label: "Parent Rider" },
+  { value: "coach_lv2", label: "Coach Lv2" },
+  { value: "coach_lv3", label: "Coach Lv3" },
+];
+
+const ROLE_LABELS: Record<string, string> = {
+  head_coach: "Head Coach",
+  team_director: "Team Director",
+  parent_rider: "Parent Rider",
+  coach_lv2: "Coach Lv2",
+  coach_lv3: "Coach Lv3",
+  coach: "Coach Lv2",
+};
+
 export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
   const [tab, setTab] = useState<"students" | "coaches">("students");
   const [students, setStudents] = useState<any[]>([]);
@@ -21,7 +38,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
     phone: "",
     email: "",
     pin: "",
-    role: "coach",
+    role: "coach_lv2",
   });
 
   const loadData = async () => {
@@ -52,7 +69,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
       phone: "",
       email: "",
       pin: "",
-      role: "coach",
+      role: "coach_lv2",
     });
     setEditItem(null);
   };
@@ -71,7 +88,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
       phone: item.phone || "",
       email: item.email || "",
       pin: item.pin || "",
-      role: item.role || "coach",
+      role: item.role || "coach_lv2",
     });
     setShowModal(true);
   };
@@ -281,12 +298,12 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${
-                        c.role === "head_coach"
+                        c.role === "head_coach" || c.role === "team_director"
                           ? "bg-accent/20 text-accent"
                           : "bg-slate-700 text-slate-300"
                       }`}
                     >
-                      {c.role === "head_coach" ? "Head Coach" : "Coach"}
+                      {ROLE_LABELS[c.role] || c.role}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -408,8 +425,11 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                   className="w-full"
                 >
-                  <option value="coach">Coach</option>
-                  <option value="head_coach">Head Coach</option>
+                  {COACH_ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </>

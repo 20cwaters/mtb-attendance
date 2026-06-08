@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import StatusBadge from "../components/StatusBadge";
 import { TableSkeleton } from "../components/Skeleton";
+import toast from "react-hot-toast";
 
 interface DashboardProps {
   isHeadCoach: boolean;
@@ -40,6 +41,23 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
     active: sessions.filter((s) => s.status === "active").length,
     completed: sessions.filter((s) => s.status === "completed").length,
     draft: sessions.filter((s) => s.status === "draft").length,
+  };
+
+  const deletePractice = async (session: any) => {
+    if (!["draft", "completed"].includes(session.status)) return;
+
+    const confirmed = window.confirm(
+      `Delete "${session.name}"? This removes the practice, groups, assignments, and attendance records.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.deleteSession(session.id);
+      setSessions((prev) => prev.filter((s) => s.id !== session.id));
+      toast.success("Practice deleted");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete practice");
+    }
   };
 
   return (
@@ -117,7 +135,7 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
                 <StatusBadge status={session.status} />
               </div>
 
-              <div className="flex gap-2 mt-4">
+              <div className="flex flex-wrap gap-2 mt-4">
                 {session.status === "draft" && (
                   <button
                     onClick={() =>
@@ -149,6 +167,16 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
                     View Report
                   </button>
                 )}
+                {isHeadCoach &&
+                  (session.status === "draft" ||
+                    session.status === "completed") && (
+                    <button
+                      onClick={() => deletePractice(session)}
+                      className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900/70 text-sm text-red-200 rounded-lg border border-red-800/70 transition"
+                    >
+                      Delete
+                    </button>
+                  )}
               </div>
             </div>
           ))}

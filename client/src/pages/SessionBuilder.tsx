@@ -102,11 +102,23 @@ export default function SessionBuilder() {
     }
   };
 
-  const updateGroupName = async (groupId: string, name: string) => {
+  const updateGroupName = (groupId: string, name: string) => {
+    setGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, name } : g))
+    );
+  };
+
+  const saveGroupName = async (groupId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error("Group name required");
+      return;
+    }
+
     try {
-      await api.updateGroup(sessionId, groupId, { name });
-      setGroups(
-        groups.map((g) => (g.id === groupId ? { ...g, name } : g))
+      await api.updateGroup(sessionId, groupId, { name: trimmed });
+      setGroups((prev) =>
+        prev.map((g) => (g.id === groupId ? { ...g, name: trimmed } : g))
       );
     } catch (err: any) {
       toast.error(err.message);
@@ -116,8 +128,8 @@ export default function SessionBuilder() {
   const updateGroupCoach = async (groupId: string, coach_id: string) => {
     try {
       await api.updateGroup(sessionId, groupId, { coach_id });
-      setGroups(
-        groups.map((g) => (g.id === groupId ? { ...g, coach_id } : g))
+      setGroups((prev) =>
+        prev.map((g) => (g.id === groupId ? { ...g, coach_id } : g))
       );
     } catch (err: any) {
       toast.error(err.message);
@@ -127,8 +139,8 @@ export default function SessionBuilder() {
   const assignStudent = async (groupId: string, studentId: string) => {
     try {
       await api.assignStudent(sessionId, groupId, studentId);
-      setGroups(
-        groups.map((g) =>
+      setGroups((prev) =>
+        prev.map((g) =>
           g.id === groupId
             ? { ...g, students: [...(g.students || []), studentId] }
             : g
@@ -142,8 +154,8 @@ export default function SessionBuilder() {
   const removeStudent = async (groupId: string, studentId: string) => {
     try {
       await api.removeAssignment(sessionId, groupId, studentId);
-      setGroups(
-        groups.map((g) =>
+      setGroups((prev) =>
+        prev.map((g) =>
           g.id === groupId
             ? {
                 ...g,
@@ -162,7 +174,7 @@ export default function SessionBuilder() {
   const deleteGroup = async (groupId: string) => {
     try {
       await api.deleteGroup(sessionId, groupId);
-      setGroups(groups.filter((g) => g.id !== groupId));
+      setGroups((prev) => prev.filter((g) => g.id !== groupId));
       toast.success("Group deleted");
     } catch (err: any) {
       toast.error(err.message);
@@ -274,6 +286,12 @@ export default function SessionBuilder() {
                 <input
                   value={group.name}
                   onChange={(e) => updateGroupName(group.id, e.target.value)}
+                  onBlur={(e) => saveGroupName(group.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur();
+                    }
+                  }}
                   className="text-lg font-semibold bg-transparent border-b border-slate-700 focus:border-accent text-white px-0"
                 />
               ) : (

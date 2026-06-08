@@ -7,6 +7,15 @@ import SessionBuilder from "./pages/SessionBuilder";
 import Attendance from "./pages/Attendance";
 import Report from "./pages/Report";
 
+const ROLE_LABELS: Record<string, string> = {
+  head_coach: "Head Coach",
+  team_director: "Team Director",
+  parent_rider: "Parent Rider",
+  coach_lv2: "Coach Lv2",
+  coach_lv3: "Coach Lv3",
+  coach: "Coach Lv2",
+};
+
 export default function App() {
   const { auth, login, logout, isHeadCoach } = useAuth();
 
@@ -27,9 +36,9 @@ export default function App() {
           <div className="flex items-center gap-4">
             <span className="text-slate-400 text-sm">
               {auth.coachName}
-              {isHeadCoach && (
-                <span className="ml-1 text-accent text-xs">(Head)</span>
-              )}
+              <span className="ml-1 text-accent text-xs">
+                ({ROLE_LABELS[auth.role] || auth.role})
+              </span>
             </span>
             <button
               onClick={logout}

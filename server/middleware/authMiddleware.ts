@@ -18,6 +18,10 @@ export async function requireCoach(
     res.status(401).json({ error: "Invalid coach ID", code: "UNAUTHORIZED" });
     return;
   }
+  if (coach.role === "deactivated") {
+    res.status(403).json({ error: "Coach is deactivated", code: "FORBIDDEN" });
+    return;
+  }
 
   (req as any).coach = coach;
   next();
@@ -41,10 +45,10 @@ export async function requireHeadCoach(
     return;
   }
 
-  if (coach.role !== "head_coach") {
+  if (!["head_coach", "team_director"].includes(coach.role)) {
     res
       .status(403)
-      .json({ error: "Head coach access required", code: "FORBIDDEN" });
+      .json({ error: "Admin coach access required", code: "FORBIDDEN" });
     return;
   }
 

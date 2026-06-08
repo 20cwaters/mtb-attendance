@@ -119,14 +119,35 @@ router.delete("/:id", requireCoach, async (req: Request, res: Response) => {
       res.status(404).json({ error: "Session not found", code: "NOT_FOUND" });
       return;
     }
-    if (session.status !== "draft") {
+    if (!["draft", "completed"].includes(session.status)) {
       res.status(400).json({
-        error: "Can only delete draft sessions",
+        error: "Can only delete draft or completed sessions",
         code: "BAD_REQUEST",
       });
       return;
     }
 
+    const [groups, assignments, attendance] = await Promise.all([
+      readSheet("session_groups"),
+      readSheet("group_assignments"),
+      readSheet("attendance"),
+    ]);
+
+    const sessionGroupIds = groups
+      .filter((g) => g.session_id === id)
+      .map((g) => g.id);
+    const relatedAssignments = assignments.filter((a) => a.session_id === id);
+    const relatedAttendance = attendance.filter((a) => a.session_id === id);
+
+    for (const row of relatedAttendance) {
+      await deleteRowById("attendance", row.id);
+    }
+    for (const row of relatedAssignments) {
+      await deleteRowById("group_assignments", row.id);
+    }
+    for (const groupId of sessionGroupIds) {
+      await deleteRowById("session_groups", groupId);
+    }
     await deleteRowById("sessions", id);
     res.json({ success: true });
   } catch (err) {
