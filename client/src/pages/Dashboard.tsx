@@ -9,9 +9,17 @@ interface DashboardProps {
   coachId: string;
 }
 
+const FILTERS = [
+  { label: "All", value: "all" },
+  { label: "Active", value: "active" },
+  { label: "Completed", value: "completed" },
+  { label: "Drafts", value: "draft" },
+];
+
 export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,6 +29,18 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered =
+    filter === "all"
+      ? sessions
+      : sessions.filter((s) => s.status === filter);
+
+  const counts: Record<string, number> = {
+    all: sessions.length,
+    active: sessions.filter((s) => s.status === "active").length,
+    completed: sessions.filter((s) => s.status === "completed").length,
+    draft: sessions.filter((s) => s.status === "draft").length,
+  };
 
   return (
     <div>
@@ -44,16 +64,45 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
         </div>
       </div>
 
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+        {FILTERS.map((f) => (
+          <button
+            key={f.value}
+            onClick={() => setFilter(f.value)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
+              filter === f.value
+                ? "bg-accent text-white"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            {f.label}
+            {counts[f.value] > 0 && (
+              <span className="ml-1.5 text-xs opacity-70">
+                {counts[f.value]}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <TableSkeleton rows={4} />
-      ) : sessions.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-lg mb-2">No sessions yet</p>
-          <p className="text-sm">Create a new session to get started</p>
+          <p className="text-lg mb-2">
+            {filter === "all"
+              ? "No sessions yet"
+              : `No ${filter} sessions`}
+          </p>
+          <p className="text-sm">
+            {filter === "all"
+              ? "Create a new session to get started"
+              : "Try a different filter"}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
-          {sessions.map((session) => (
+          {filtered.map((session) => (
             <div
               key={session.id}
               className="bg-slate-900 rounded-xl border border-slate-800 p-5 hover:border-slate-700 transition"

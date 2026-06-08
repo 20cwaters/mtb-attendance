@@ -22,6 +22,15 @@ const LABELS: Record<string, string> = {
   injured: "Injured",
 };
 
+function parseStatuses(status: string | undefined): string[] {
+  if (!status) return [];
+  return status.split(",").filter(Boolean);
+}
+
+function serializeStatuses(statuses: string[]): string {
+  return statuses.join(",");
+}
+
 interface AttendanceProps {
   coachId: string;
   isHeadCoach: boolean;
@@ -87,16 +96,33 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
     [sessionId]
   );
 
-  const setStudentStatus = (
+  const toggleStatus = (
     groupId: string,
     studentId: string,
     status: string
   ) => {
     const key = `${groupId}_${studentId}`;
     const existing = attendance[key] || {};
-    const updated = { ...existing, status, group_id: groupId, student_id: studentId };
+    const current = parseStatuses(existing.status);
+
+    let next: string[];
+    if (current.includes(status)) {
+      next = current.filter((s) => s !== status);
+    } else {
+      // "absent" and "present" are mutually exclusive
+      if (status === "absent") {
+        next = [status, ...current.filter((s) => s !== "present")];
+      } else if (status === "present") {
+        next = [status, ...current.filter((s) => s !== "absent")];
+      } else {
+        next = [...current, status];
+      }
+    }
+
+    const serialized = serializeStatuses(next);
+    const updated = { ...existing, status: serialized, group_id: groupId, student_id: studentId };
     setAttendance((prev) => ({ ...prev, [key]: updated }));
-    saveAttendance(groupId, studentId, status, updated.note || "");
+    saveAttendance(groupId, studentId, serialized, updated.note || "");
   };
 
   const setStudentNote = (
@@ -115,7 +141,16 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
 
   const markAllPresent = (group: any) => {
     (group.students || []).forEach((sid: string) => {
-      setStudentStatus(group.id, sid, "present");
+      const key = `${group.id}_${sid}`;
+      const existing = attendance[key] || {};
+      const current = parseStatuses(existing.status);
+      if (!current.includes("present")) {
+        const next = ["present", ...current.filter((s) => s !== "absent")];
+        const serialized = serializeStatuses(next);
+        const updated = { ...existing, status: serialized, group_id: group.id, student_id: sid };
+        setAttendance((prev) => ({ ...prev, [key]: updated }));
+        saveAttendance(group.id, sid, serialized, updated.note || "");
+      }
     });
   };
 
@@ -204,6 +239,7 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
             {(currentGroup.students || []).map((sid: string) => {
               const key = `${currentGroup.id}_${sid}`;
               const att = attendance[key] || {};
+              const activeStatuses = parseStatuses(att.status);
 
               return (
                 <div key={sid} className="p-4">
@@ -221,12 +257,12 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
                   <div className="flex flex-wrap gap-2 mb-2">
                     {STATUSES.map((s) => {
                       const style = STATUS_STYLES[s];
-                      const isActive = att.status === s;
+                      const isActive = activeStatuses.includes(s);
                       return (
                         <button
                           key={s}
                           onClick={() =>
-                            setStudentStatus(currentGroup.id, sid, s)
+                            toggleStatus(currentGroup.id, sid, s)
                           }
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
                             isActive

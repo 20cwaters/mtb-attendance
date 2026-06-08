@@ -59,12 +59,13 @@ export async function getReportData(sessionId: string): Promise<ReportData> {
       );
 
       const status = att?.status || "unmarked";
+      const statuses = status.split(",").filter(Boolean);
       summary.total++;
-      if (status === "present") summary.present++;
-      else if (status === "absent") summary.absent++;
-      else if (status === "late") summary.late++;
-      else if (status === "left_early") summary.left_early++;
-      else if (status === "injured") summary.injured++;
+      if (statuses.includes("present")) summary.present++;
+      if (statuses.includes("absent")) summary.absent++;
+      if (statuses.includes("late")) summary.late++;
+      if (statuses.includes("left_early")) summary.left_early++;
+      if (statuses.includes("injured")) summary.injured++;
 
       return {
         name: student?.name || "Unknown",
@@ -97,7 +98,20 @@ export async function exportReportToSheet(sessionId: string): Promise<string> {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
 
-  const tabName = `Report - ${report.session.name} - ${report.session.date}`;
+  let tabName = `Report - ${report.session.name} - ${report.session.date}`;
+
+  // Check if tab already exists, append timestamp if so
+  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
+  const existingTabs = (spreadsheet.data.sheets || []).map(
+    (s) => s.properties?.title || ""
+  );
+  if (existingTabs.includes(tabName)) {
+    const timestamp = new Date().toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    tabName = `${tabName} (${timestamp})`;
+  }
 
   const addSheetRes = await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -110,33 +124,45 @@ export async function exportReportToSheet(sessionId: string): Promise<string> {
     addSheetRes.data.replies?.[0]?.addSheet?.properties?.sheetId || 0;
 
   const rows: string[][] = [];
-  rows.push([`Session: ${report.session.name}`, "", `Date: ${report.session.date}`]);
-  rows.push([]);
-
-  let currentRow = 2;
   const formatRequests: any[] = [];
 
+  // Row 0: Session header
+  rows.push([`Session: ${report.session.name}`, "", `Date: ${report.session.date}`]);
+  // Row 1: blank
+  rows.push([]);
+
+  let rowIndex = 2; // next row to write (0-indexed for Sheets API ranges)
+
   for (const groupData of report.groups) {
+    // Group header row
     rows.push([
       `Group: ${groupData.group.name}`,
       "",
       `Coach: ${groupData.coachName}`,
     ]);
+    rowIndex++;
+
+    // Column headers row
     rows.push(["Student Name", "Status", "Note", "Marked At"]);
-    currentRow += 2;
+    rowIndex++;
 
     for (const student of groupData.students) {
-      rows.push([student.name, student.status, student.note, student.marked_at]);
-      currentRow++;
+      const displayStatus = student.status
+        .split(",")
+        .filter(Boolean)
+        .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace("_", " "))
+        .join(", ");
+      rows.push([student.name, displayStatus, student.note, student.marked_at]);
 
-      const color = STATUS_COLORS[student.status];
+      const primaryStatus = student.status.split(",")[0];
+      const color = STATUS_COLORS[primaryStatus];
       if (color) {
         formatRequests.push({
           repeatCell: {
             range: {
               sheetId,
-              startRowIndex: currentRow - 1,
-              endRowIndex: currentRow,
+              startRowIndex: rowIndex,
+              endRowIndex: rowIndex + 1,
               startColumnIndex: 1,
               endColumnIndex: 2,
             },
@@ -149,10 +175,12 @@ export async function exportReportToSheet(sessionId: string): Promise<string> {
           },
         });
       }
+      rowIndex++;
     }
 
+    // Blank row between groups
     rows.push([]);
-    currentRow++;
+    rowIndex++;
   }
 
   rows.push(["SUMMARY"]);

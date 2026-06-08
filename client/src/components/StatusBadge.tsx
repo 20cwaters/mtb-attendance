@@ -14,15 +14,34 @@ const LABELS: Record<string, string> = {
   left_early: "Left Early",
 };
 
+function formatLabel(s: string) {
+  return LABELS[s] || s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export default function StatusBadge({ status }: { status: string }) {
-  const style = STATUS_STYLES[status] || STATUS_STYLES.unmarked;
-  const label = LABELS[status] || status.charAt(0).toUpperCase() + status.slice(1);
+  const parts = status.split(",").filter(Boolean);
+
+  if (parts.length === 0) {
+    return (
+      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_STYLES.unmarked}`}>
+        Unmarked
+      </span>
+    );
+  }
 
   return (
-    <span
-      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${style}`}
-    >
-      {label}
+    <span className="inline-flex flex-wrap gap-1">
+      {parts.map((p) => {
+        const style = STATUS_STYLES[p] || STATUS_STYLES.unmarked;
+        return (
+          <span
+            key={p}
+            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${style}`}
+          >
+            {formatLabel(p)}
+          </span>
+        );
+      })}
     </span>
   );
 }
