@@ -37,8 +37,17 @@ export default function Login({ onLogin }: LoginProps) {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-accent mb-2">MTB</h1>
-          <p className="text-slate-400">Mountain Biking Team Attendance</p>
+          <div className="mx-auto mb-4 w-32 h-32 rounded-full bg-white shadow-lg shadow-accent/20 ring-4 ring-accent/30 flex items-center justify-center overflow-hidden">
+            <img
+              src="/bulldog.jpg"
+              alt="Bulldogs logo"
+              className="w-28 h-28 object-contain"
+            />
+          </div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            GV <span className="text-accent">Bulldogs</span>
+          </h1>
+          <p className="text-slate-400 mt-1">Mountain Biking Team Attendance</p>
         </div>
 
         <form
