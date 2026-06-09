@@ -27,15 +27,33 @@ router.get("/", async (_req: Request, res: Response) => {
 router.get("/with-names", async (_req: Request, res: Response) => {
   try {
     const coaches = await readSheet("coaches");
+    // Login dropdown: everyone active (developers must be able to sign in)
     const names = coaches
       .filter((c) => c.role !== "deactivated")
-      .map((c) => ({ id: c.id, name: c.name }));
+      .map((c) => ({ id: c.id, name: c.name, role: c.role }));
     res.json(names);
   } catch (err) {
     console.error("Get coach names error:", err);
     res
       .status(500)
       .json({ error: "Failed to fetch coach names", code: "SERVER_ERROR" });
+  }
+});
+
+router.get("/assignable", async (_req: Request, res: Response) => {
+  try {
+    const coaches = await readSheet("coaches");
+    // Group assignment: exclude developers (admins who shouldn't appear as coaches)
+    const names = coaches
+      .filter((c) => c.role !== "deactivated" && c.role !== "developer")
+      .map((c) => ({ id: c.id, name: c.name, role: c.role }));
+    res.json(names);
+  } catch (err) {
+    console.error("Get assignable coaches error:", err);
+    res.status(500).json({
+      error: "Failed to fetch assignable coaches",
+      code: "SERVER_ERROR",
+    });
   }
 });
 

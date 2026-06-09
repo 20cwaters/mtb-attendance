@@ -5,7 +5,7 @@ import {
   appendRow,
   updateRowById,
 } from "../services/sheetsClient";
-import { requireCoach } from "../middleware/authMiddleware";
+import { requireHeadCoach } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -34,7 +34,7 @@ router.get("/all", async (_req: Request, res: Response) => {
   }
 });
 
-router.post("/", requireCoach, async (req: Request, res: Response) => {
+router.post("/", requireHeadCoach, async (req: Request, res: Response) => {
   try {
     const { name, grade, emergency_contact, phone } = req.body;
     if (!name) {
@@ -63,7 +63,7 @@ router.post("/", requireCoach, async (req: Request, res: Response) => {
   }
 });
 
-router.put("/:id", requireCoach, async (req: Request, res: Response) => {
+router.put("/:id", requireHeadCoach, async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const updates = req.body;
@@ -81,7 +81,7 @@ router.put("/:id", requireCoach, async (req: Request, res: Response) => {
   }
 });
 
-router.delete("/:id", requireCoach, async (req: Request, res: Response) => {
+router.delete("/:id", requireHeadCoach, async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const updated = await updateRowById("students", id, { active: "FALSE" });

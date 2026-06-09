@@ -62,19 +62,19 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <div className="flex gap-3">
           <button
             onClick={() => navigate("/roster")}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition text-sm"
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition text-sm"
           >
             Manage Roster
           </button>
           {isHeadCoach && (
             <button
               onClick={() => navigate("/sessions/new")}
-              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg transition text-sm font-semibold"
+              className="flex-1 sm:flex-none px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg transition text-sm font-semibold"
             >
               New Session
             </button>

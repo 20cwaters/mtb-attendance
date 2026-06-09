@@ -6,6 +6,7 @@ import { TableSkeleton } from "../components/Skeleton";
 import toast from "react-hot-toast";
 
 const COACH_ROLES = [
+  { value: "developer", label: "Developer" },
   { value: "head_coach", label: "Head Coach" },
   { value: "team_director", label: "Team Director" },
   { value: "parent_rider", label: "Parent Rider" },
@@ -14,6 +15,7 @@ const COACH_ROLES = [
 ];
 
 const ROLE_LABELS: Record<string, string> = {
+  developer: "Developer",
   head_coach: "Head Coach",
   team_director: "Team Director",
   parent_rider: "Parent Rider",
@@ -157,7 +159,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate("/dashboard")}
@@ -167,12 +169,14 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
           </button>
           <h1 className="text-2xl font-bold text-white">Roster</h1>
         </div>
-        <button
-          onClick={openAdd}
-          className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg transition text-sm font-semibold"
-        >
-          {tab === "students" ? "Add Student" : "Add Coach"}
-        </button>
+        {isHeadCoach && (
+          <button
+            onClick={openAdd}
+            className="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg transition text-sm font-semibold"
+          >
+            {tab === "students" ? "Add Student" : "Add Coach"}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 mb-6">
@@ -219,9 +223,11 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                 <th className="px-4 py-3 text-sm text-slate-400 font-medium hidden md:table-cell">
                   Phone
                 </th>
-                <th className="px-4 py-3 text-sm text-slate-400 font-medium">
-                  Actions
-                </th>
+                {isHeadCoach && (
+                  <th className="px-4 py-3 text-sm text-slate-400 font-medium">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -240,29 +246,33 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   <td className="px-4 py-3 text-slate-300 hidden md:table-cell">
                     {s.phone}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openEdit(s)}
-                        className="text-xs text-accent hover:text-accent-light"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeactivate(s.id)}
-                        className="text-xs text-red-400 hover:text-red-300"
-                      >
-                        Deactivate
-                      </button>
-                    </div>
-                  </td>
+                  {isHeadCoach && (
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openEdit(s)}
+                          className="text-xs text-accent hover:text-accent-light"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeactivate(s.id)}
+                          className="text-xs text-red-400 hover:text-red-300"
+                        >
+                          Deactivate
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
           {students.length === 0 && (
             <p className="text-center py-8 text-slate-400">
-              No students yet. Add one to get started.
+              {isHeadCoach
+                ? "No students yet. Add one to get started."
+                : "No students in the roster yet."}
             </p>
           )}
         </div>
@@ -298,7 +308,9 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${
-                        c.role === "head_coach" || c.role === "team_director"
+                        ["head_coach", "team_director", "developer"].includes(
+                          c.role
+                        )
                           ? "bg-accent/20 text-accent"
                           : "bg-slate-700 text-slate-300"
                       }`}

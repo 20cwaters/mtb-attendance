@@ -36,7 +36,13 @@ export const api = {
   // Coaches
   getCoaches: () => request<any[]>("/api/coaches"),
   getCoachNames: () =>
-    request<{ id: string; name: string }[]>("/api/coaches/with-names"),
+    request<{ id: string; name: string; role?: string }[]>(
+      "/api/coaches/with-names"
+    ),
+  getAssignableCoaches: () =>
+    request<{ id: string; name: string; role?: string }[]>(
+      "/api/coaches/assignable"
+    ),
   addCoach: (data: any) =>
     request<any>("/api/coaches", {
       method: "POST",

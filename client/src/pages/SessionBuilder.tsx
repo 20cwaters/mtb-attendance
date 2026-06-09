@@ -25,7 +25,7 @@ export default function SessionBuilder() {
       try {
         const [s, c] = await Promise.all([
           api.getStudents(),
-          api.getCoachNames(),
+          api.getAssignableCoaches(),
         ]);
         setStudents(s);
         setCoaches(c);
@@ -125,7 +125,8 @@ export default function SessionBuilder() {
     }
   };
 
-  const updateGroupCoach = async (groupId: string, coach_id: string) => {
+  const setGroupCoaches = async (groupId: string, coachIds: string[]) => {
+    const coach_id = coachIds.join(",");
     try {
       await api.updateGroup(sessionId, groupId, { coach_id });
       setGroups((prev) =>
@@ -135,6 +136,24 @@ export default function SessionBuilder() {
       toast.error(err.message);
     }
   };
+
+  const addGroupCoach = (group: any, coachId: string) => {
+    if (!coachId) return;
+    const current = (group.coach_id || "").split(",").filter(Boolean);
+    if (current.includes(coachId)) return;
+    setGroupCoaches(group.id, [...current, coachId]);
+  };
+
+  const removeGroupCoach = (group: any, coachId: string) => {
+    const current = (group.coach_id || "").split(",").filter(Boolean);
+    setGroupCoaches(
+      group.id,
+      current.filter((c: string) => c !== coachId)
+    );
+  };
+
+  const getCoachName = (coachId: string) =>
+    coaches.find((c) => c.id === coachId)?.name || "Unknown";
 
   const assignStudent = async (groupId: string, studentId: string) => {
     try {
@@ -241,20 +260,20 @@ export default function SessionBuilder() {
             />
           </div>
         </div>
-        <div className="flex gap-3 mt-4">
+        <div className="flex flex-wrap gap-3 mt-4">
           {status === "draft" && (
             <>
               <button
                 onClick={saveSession}
                 disabled={saving}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition text-sm"
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition text-sm"
               >
                 {saving ? "Saving..." : "Save Draft"}
               </button>
               <button
                 onClick={activateSession}
                 disabled={!sessionId}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-semibold"
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-semibold"
               >
                 Activate Session
               </button>
@@ -311,23 +330,61 @@ export default function SessionBuilder() {
 
             <div className="mb-3">
               <label className="block text-xs text-slate-400 mb-1">
-                Coach
+                Coaches / Parent Riders
               </label>
-              <select
-                value={group.coach_id || ""}
-                onChange={(e) =>
-                  updateGroupCoach(group.id, e.target.value)
-                }
-                className="w-full text-sm"
-                disabled={status !== "draft"}
-              >
-                <option value="">Unassigned</option>
-                {coaches.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              {(() => {
+                const assigned = (group.coach_id || "")
+                  .split(",")
+                  .filter(Boolean);
+                const available = coaches.filter(
+                  (c) => !assigned.includes(c.id)
+                );
+                return (
+                  <>
+                    {assigned.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {assigned.map((cid: string) => (
+                          <span
+                            key={cid}
+                            className="inline-flex items-center gap-1.5 bg-accent/15 text-accent border border-accent/30 rounded-full pl-3 pr-1.5 py-1 text-xs"
+                          >
+                            {getCoachName(cid)}
+                            {status === "draft" && (
+                              <button
+                                onClick={() => removeGroupCoach(group, cid)}
+                                className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-accent/30 text-accent"
+                                aria-label="Remove coach"
+                              >
+                                &times;
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {status === "draft" && (
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          addGroupCoach(group, e.target.value);
+                          e.target.value = "";
+                        }}
+                        className="w-full text-base"
+                      >
+                        <option value="">+ Add coach / parent rider…</option>
+                        {available.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {assigned.length === 0 && status !== "draft" && (
+                      <p className="text-xs text-slate-500">Unassigned</p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             <div className="mb-3">

@@ -46,7 +46,11 @@ export async function getReportData(sessionId: string): Promise<ReportData> {
   };
 
   const groupsData = sessionGroups.map((group) => {
-    const coach = coaches.find((c) => c.id === group.coach_id);
+    const coachIds = (group.coach_id || "").split(",").filter(Boolean);
+    const coachNames = coachIds
+      .map((cid: string) => coaches.find((c) => c.id === cid)?.name)
+      .filter(Boolean)
+      .join(", ");
     const groupAssignments = assignments.filter(
       (a) => a.session_id === sessionId && a.group_id === group.id
     );
@@ -77,7 +81,7 @@ export async function getReportData(sessionId: string): Promise<ReportData> {
 
     return {
       group,
-      coachName: coach?.name || "Unassigned",
+      coachName: coachNames || "Unassigned",
       students: studentRows,
     };
   });

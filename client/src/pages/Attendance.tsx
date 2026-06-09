@@ -159,7 +159,9 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
 
   const visibleGroups = isHeadCoach
     ? groups
-    : groups.filter((g: any) => g.coach_id === coachId);
+    : groups.filter((g: any) =>
+        (g.coach_id || "").split(",").filter(Boolean).includes(coachId)
+      );
 
   if (loading) return <TableSkeleton />;
 

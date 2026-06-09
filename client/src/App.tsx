@@ -8,6 +8,7 @@ import Attendance from "./pages/Attendance";
 import Report from "./pages/Report";
 
 const ROLE_LABELS: Record<string, string> = {
+  developer: "Developer",
   head_coach: "Head Coach",
   team_director: "Team Director",
   parent_rider: "Parent Rider",

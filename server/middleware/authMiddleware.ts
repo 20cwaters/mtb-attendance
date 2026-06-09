@@ -45,7 +45,7 @@ export async function requireHeadCoach(
     return;
   }
 
-  if (!["head_coach", "team_director"].includes(coach.role)) {
+  if (!["head_coach", "team_director", "developer"].includes(coach.role)) {
     res
       .status(403)
       .json({ error: "Admin coach access required", code: "FORBIDDEN" });
