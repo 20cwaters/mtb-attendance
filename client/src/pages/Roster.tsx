@@ -5,8 +5,10 @@ import Modal from "../components/Modal";
 import { TableSkeleton } from "../components/Skeleton";
 import toast from "react-hot-toast";
 
+// "Developer" is intentionally omitted here — it's a single-person admin role
+// that isn't offered when creating coaches. It's only shown when editing an
+// existing developer so their role isn't accidentally changed on save.
 const COACH_ROLES = [
-  { value: "developer", label: "Developer" },
   { value: "head_coach", label: "Head Coach" },
   { value: "team_director", label: "Team Director" },
   { value: "parent_rider", label: "Parent Rider" },
@@ -31,6 +33,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [viewStudent, setViewStudent] = useState<any>(null);
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -234,9 +237,17 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
               {students.map((s) => (
                 <tr
                   key={s.id}
-                  className="border-b border-slate-800/50 hover:bg-slate-800/30"
+                  onClick={() => setViewStudent(s)}
+                  className="border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer"
                 >
-                  <td className="px-4 py-3 text-white">{s.name}</td>
+                  <td className="px-4 py-3 text-white">
+                    <span className="flex items-center gap-2">
+                      <span className="text-accent" aria-hidden="true">
+                        ›
+                      </span>
+                      {s.name}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-slate-300 hidden sm:table-cell">
                     {s.grade}
                   </td>
@@ -250,13 +261,19 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => openEdit(s)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(s);
+                          }}
                           className="text-xs text-accent hover:text-accent-light"
                         >
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDeactivate(s.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeactivate(s.id);
+                          }}
                           className="text-xs text-red-400 hover:text-red-300"
                         >
                           Deactivate
@@ -305,9 +322,9 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   <td className="px-4 py-3 text-slate-300 hidden sm:table-cell">
                     {c.email}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${
+                      className={`inline-block whitespace-nowrap text-xs px-2 py-0.5 rounded-full ${
                         ["head_coach", "team_director", "developer"].includes(
                           c.role
                         )
@@ -437,7 +454,10 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                   className="w-full"
                 >
-                  {COACH_ROLES.map((role) => (
+                  {(editItem?.role === "developer"
+                    ? [{ value: "developer", label: "Developer" }, ...COACH_ROLES]
+                    : COACH_ROLES
+                  ).map((role) => (
                     <option key={role.value} value={role.value}>
                       {role.label}
                     </option>
@@ -454,6 +474,59 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
             {editItem ? "Save Changes" : "Add"}
           </button>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!viewStudent}
+        onClose={() => setViewStudent(null)}
+        title={viewStudent?.name || "Student"}
+      >
+        {viewStudent && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                Grade
+              </p>
+              <p className="text-white">{viewStudent.grade || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                Emergency Contact
+              </p>
+              <p className="text-white">
+                {viewStudent.emergency_contact || "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                Phone
+              </p>
+              {viewStudent.phone ? (
+                <a
+                  href={`tel:${viewStudent.phone.replace(/[^\d+]/g, "")}`}
+                  className="text-accent hover:text-accent-light font-medium"
+                >
+                  {viewStudent.phone}
+                </a>
+              ) : (
+                <p className="text-white">—</p>
+              )}
+            </div>
+
+            {isHeadCoach && (
+              <button
+                onClick={() => {
+                  const s = viewStudent;
+                  setViewStudent(null);
+                  openEdit(s);
+                }}
+                className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold py-2.5 rounded-lg transition mt-2"
+              >
+                Edit Student
+              </button>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );
