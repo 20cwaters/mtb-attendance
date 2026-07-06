@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import Modal from "../components/Modal";
 import { TableSkeleton } from "../components/Skeleton";
 import toast from "react-hot-toast";
+import { ROLE_LABELS, sortCoachesByRole, sortStudentsByGrade } from "../utils/roster";
 
 // "Developer" is intentionally omitted here — it's a single-person admin role
 // that isn't offered when creating coaches. It's only shown when editing an
@@ -15,16 +16,6 @@ const COACH_ROLES = [
   { value: "coach_lv2", label: "Coach Lv2" },
   { value: "coach_lv3", label: "Coach Lv3" },
 ];
-
-const ROLE_LABELS: Record<string, string> = {
-  developer: "Developer",
-  head_coach: "Head Coach",
-  team_director: "Team Director",
-  parent_rider: "Parent Rider",
-  coach_lv2: "Coach Lv2",
-  coach_lv3: "Coach Lv3",
-  coach: "Coach Lv2",
-};
 
 export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
   const [tab, setTab] = useState<"students" | "coaches">("students");
@@ -239,7 +230,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {students.map((s) => (
+              {sortStudentsByGrade(students).map((s) => (
                 <tr
                   key={s.id}
                   onClick={() => setViewStudent(s)}
@@ -318,7 +309,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {coaches.map((c) => (
+              {sortCoachesByRole(coaches).map((c) => (
                 <tr
                   key={c.id}
                   onClick={() => setViewCoach(c)}

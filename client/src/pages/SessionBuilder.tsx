@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { TableSkeleton } from "../components/Skeleton";
 import toast from "react-hot-toast";
+import { ROLE_LABELS, sortCoachesByRole, sortStudentsByGrade } from "../utils/roster";
 
 export default function SessionBuilder() {
   const { id } = useParams();
@@ -49,7 +50,7 @@ export default function SessionBuilder() {
 
   const assignedStudentIds = groups.flatMap((g: any) => g.students || []);
 
-  const unassignedStudents = students.filter(
+  const unassignedStudents = sortStudentsByGrade(students).filter(
     (s) =>
       !assignedStudentIds.includes(s.id) &&
       s.name.toLowerCase().includes(search.toLowerCase())
@@ -372,8 +373,8 @@ export default function SessionBuilder() {
                 const assigned = (group.coach_id || "")
                   .split(",")
                   .filter(Boolean);
-                const available = coaches.filter(
-                  (c) => !assigned.includes(c.id)
+                const available = sortCoachesByRole(
+                  coaches.filter((c) => !assigned.includes(c.id))
                 );
                 return (
                   <>
@@ -398,22 +399,21 @@ export default function SessionBuilder() {
                         ))}
                       </div>
                     )}
-                    {status === "draft" && (
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          addGroupCoach(group, e.target.value);
-                          e.target.value = "";
-                        }}
-                        className="w-full text-base"
-                      >
-                        <option value="">+ Add coach / parent rider…</option>
+                    {status === "draft" && available.length > 0 && (
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
                         {available.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
+                          <button
+                            key={c.id}
+                            onClick={() => addGroupCoach(group, c.id)}
+                            className="w-full flex items-center justify-between bg-slate-800/50 hover:bg-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 transition"
+                          >
+                            <span>+ {c.name}</span>
+                            <span className="text-xs text-slate-500">
+                              {ROLE_LABELS[c.role] || c.role}
+                            </span>
+                          </button>
                         ))}
-                      </select>
+                      </div>
                     )}
                     {assigned.length === 0 && status !== "draft" && (
                       <p className="text-xs text-slate-500">Unassigned</p>
@@ -455,8 +455,8 @@ export default function SessionBuilder() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full text-sm mb-2"
                 />
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {unassignedStudents.slice(0, 10).map((s) => (
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {unassignedStudents.map((s) => (
                     <button
                       key={s.id}
                       onClick={() => assignStudent(group.id, s.id)}
