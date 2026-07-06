@@ -25,10 +25,10 @@ export function getSheets(): sheets_v4.Sheets {
 }
 
 const REQUIRED_SHEETS: Record<string, string[]> = {
-  coaches: ["id", "name", "email", "pin", "role"],
+  coaches: ["id", "name", "email", "pin", "role", "phone", "emergency_contact"],
   students: ["id", "name", "grade", "emergency_contact", "phone", "active"],
   sessions: ["id", "date", "name", "status", "created_by", "created_at"],
-  session_groups: ["id", "session_id", "name", "coach_id"],
+  session_groups: ["id", "session_id", "name", "coach_id", "notes"],
   group_assignments: ["id", "session_id", "group_id", "student_id"],
   attendance: [
     "id",

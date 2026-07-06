@@ -186,7 +186,7 @@ router.get("/:id/groups", async (req: Request, res: Response) => {
 router.post("/:id/groups", requireCoach, async (req: Request, res: Response) => {
   try {
     const sessionId = req.params.id as string;
-    const { name, coach_id } = req.body;
+    const { name, coach_id, notes } = req.body;
     if (!name) {
       res
         .status(400)
@@ -200,9 +200,10 @@ router.post("/:id/groups", requireCoach, async (req: Request, res: Response) => 
       session_id: sessionId,
       name,
       coach_id: coach_id || "",
+      notes: notes || "",
     });
 
-    res.status(201).json({ id, session_id: sessionId, name, coach_id });
+    res.status(201).json({ id, session_id: sessionId, name, coach_id, notes });
   } catch (err) {
     console.error("Create group error:", err);
     res

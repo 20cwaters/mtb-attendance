@@ -146,6 +146,11 @@ export async function exportReportToSheet(sessionId: string): Promise<string> {
     ]);
     rowIndex++;
 
+    if (groupData.group.notes) {
+      rows.push([`Notes: ${groupData.group.notes}`]);
+      rowIndex++;
+    }
+
     // Column headers row
     rows.push(["Student Name", "Status", "Note", "Marked At"]);
     rowIndex++;

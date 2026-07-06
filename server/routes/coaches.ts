@@ -59,7 +59,7 @@ router.get("/assignable", async (_req: Request, res: Response) => {
 
 router.post("/", requireHeadCoach, async (req: Request, res: Response) => {
   try {
-    const { name, email, pin, role } = req.body;
+    const { name, email, pin, role, phone, emergency_contact } = req.body;
     if (!name || !pin) {
       res
         .status(400)
@@ -74,9 +74,18 @@ router.post("/", requireHeadCoach, async (req: Request, res: Response) => {
       email: email || "",
       pin,
       role: role || "coach_lv2",
+      phone: phone || "",
+      emergency_contact: emergency_contact || "",
     });
 
-    res.status(201).json({ id, name, email, role: role || "coach_lv2" });
+    res.status(201).json({
+      id,
+      name,
+      email,
+      role: role || "coach_lv2",
+      phone,
+      emergency_contact,
+    });
   } catch (err) {
     console.error("Add coach error:", err);
     res

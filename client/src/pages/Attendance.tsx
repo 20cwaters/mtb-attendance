@@ -237,6 +237,17 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
             </button>
           </div>
 
+          {currentGroup.notes && (
+            <div className="p-4 border-b border-slate-800">
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                What to Work On
+              </p>
+              <p className="text-sm text-slate-300 bg-slate-800/50 rounded-lg px-3 py-2">
+                {currentGroup.notes}
+              </p>
+            </div>
+          )}
+
           <div className="divide-y divide-slate-800/50">
             {(currentGroup.students || []).map((sid: string) => {
               const key = `${currentGroup.id}_${sid}`;

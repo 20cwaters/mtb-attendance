@@ -125,6 +125,20 @@ export default function SessionBuilder() {
     }
   };
 
+  const updateGroupNotes = (groupId: string, notes: string) => {
+    setGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, notes } : g))
+    );
+  };
+
+  const saveGroupNotes = async (groupId: string, notes: string) => {
+    try {
+      await api.updateGroup(sessionId, groupId, { notes });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   const setGroupCoaches = async (groupId: string, coachIds: string[]) => {
     const coach_id = coachIds.join(",");
     try {
@@ -325,6 +339,28 @@ export default function SessionBuilder() {
                 >
                   Delete
                 </button>
+              )}
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-xs text-slate-400 mb-1">
+                Notes for Coach (what to work on)
+              </label>
+              {status === "draft" ? (
+                <textarea
+                  placeholder="e.g. cornering drills, endurance ride, review shifting..."
+                  value={group.notes || ""}
+                  onChange={(e) => updateGroupNotes(group.id, e.target.value)}
+                  onBlur={(e) => saveGroupNotes(group.id, e.target.value)}
+                  rows={2}
+                  className="w-full text-sm"
+                />
+              ) : group.notes ? (
+                <p className="text-sm text-slate-300 bg-slate-800/50 rounded-lg px-3 py-2">
+                  {group.notes}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500">No notes</p>
               )}
             </div>
 

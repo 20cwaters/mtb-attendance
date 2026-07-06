@@ -118,6 +118,11 @@ export default function Report() {
             <p className="text-sm text-slate-400">
               Coach: {groupData.coachName}
             </p>
+            {groupData.group.notes && (
+              <p className="text-sm text-slate-300 mt-2 bg-slate-800/50 rounded-lg px-3 py-2">
+                {groupData.group.notes}
+              </p>
+            )}
           </div>
           <table className="w-full">
             <thead>

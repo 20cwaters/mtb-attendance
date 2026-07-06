@@ -34,6 +34,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [viewStudent, setViewStudent] = useState<any>(null);
+  const [viewCoach, setViewCoach] = useState<any>(null);
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -125,6 +126,8 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
             email: form.email,
             pin: form.pin,
             role: form.role,
+            phone: form.phone,
+            emergency_contact: form.emergency_contact,
           });
           toast.success("Coach updated");
         } else {
@@ -133,6 +136,8 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
             email: form.email,
             pin: form.pin,
             role: form.role,
+            phone: form.phone,
+            emergency_contact: form.emergency_contact,
           });
           toast.success("Coach added");
         }
@@ -316,9 +321,17 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
               {coaches.map((c) => (
                 <tr
                   key={c.id}
-                  className="border-b border-slate-800/50 hover:bg-slate-800/30"
+                  onClick={() => setViewCoach(c)}
+                  className="border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer"
                 >
-                  <td className="px-4 py-3 text-white">{c.name}</td>
+                  <td className="px-4 py-3 text-white">
+                    <span className="flex items-center gap-2">
+                      <span className="text-accent" aria-hidden="true">
+                        ›
+                      </span>
+                      {c.name}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-slate-300 hidden sm:table-cell">
                     {c.email}
                   </td>
@@ -338,13 +351,19 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => openEdit(c)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(c);
+                        }}
                         className="text-xs text-accent hover:text-accent-light"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDeactivate(c.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeactivate(c.id);
+                        }}
                         className="text-xs text-red-400 hover:text-red-300"
                       >
                         Deactivate
@@ -425,6 +444,28 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-300 mb-1">
+                  Phone
+                </label>
+                <input
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-300 mb-1">
+                  Emergency Contact
+                </label>
+                <input
+                  value={form.emergency_contact}
+                  onChange={(e) =>
+                    setForm({ ...form, emergency_contact: e.target.value })
+                  }
                   className="w-full"
                 />
               </div>
@@ -523,6 +564,68 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
                 className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold py-2.5 rounded-lg transition mt-2"
               >
                 Edit Student
+              </button>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!viewCoach}
+        onClose={() => setViewCoach(null)}
+        title={viewCoach?.name || "Coach"}
+      >
+        {viewCoach && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                Email
+              </p>
+              {viewCoach.email ? (
+                <a
+                  href={`mailto:${viewCoach.email}`}
+                  className="text-accent hover:text-accent-light font-medium"
+                >
+                  {viewCoach.email}
+                </a>
+              ) : (
+                <p className="text-white">—</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                Phone
+              </p>
+              {viewCoach.phone ? (
+                <a
+                  href={`tel:${viewCoach.phone.replace(/[^\d+]/g, "")}`}
+                  className="text-accent hover:text-accent-light font-medium"
+                >
+                  {viewCoach.phone}
+                </a>
+              ) : (
+                <p className="text-white">—</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                Emergency Contact
+              </p>
+              <p className="text-white">
+                {viewCoach.emergency_contact || "—"}
+              </p>
+            </div>
+
+            {isHeadCoach && (
+              <button
+                onClick={() => {
+                  const c = viewCoach;
+                  setViewCoach(null);
+                  openEdit(c);
+                }}
+                className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold py-2.5 rounded-lg transition mt-2"
+              >
+                Edit Coach
               </button>
             )}
           </div>
