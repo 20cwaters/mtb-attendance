@@ -4,21 +4,31 @@ import { api } from "../api/client";
 import { TableSkeleton } from "../components/Skeleton";
 import toast from "react-hot-toast";
 import { ROLE_LABELS, sortCoachesByRole, sortStudentsByGrade } from "../utils/roster";
+import { useAuth } from "../hooks/useAuth";
 
-export default function SessionBuilder() {
+// Must match TEMPLATE_SESSION_ID in server/services/sheetsClient.ts.
+const TEMPLATE_ID = "default-template";
+
+export default function SessionBuilder({
+  isTemplate = false,
+}: {
+  isTemplate?: boolean;
+}) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isHeadCoach } = useAuth();
   const isEdit = !!id;
 
-  const [sessionName, setSessionName] = useState("");
+  const [practiceName, setPracticeName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [location, setLocation] = useState("");
   const [status, setStatus] = useState("draft");
   const [groups, setGroups] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [coaches, setCoaches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [sessionId, setSessionId] = useState(id || "");
+  const [practiceId, setPracticeId] = useState(id || "");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -31,13 +41,19 @@ export default function SessionBuilder() {
         setStudents(s);
         setCoaches(c);
 
-        if (id) {
-          const session = await api.getSession(id);
-          setSessionName(session.name);
-          setDate(session.date);
-          setStatus(session.status);
-          setGroups(session.groups || []);
-          setSessionId(id);
+        if (isTemplate) {
+          const template = await api.getSession(TEMPLATE_ID);
+          setPracticeId(TEMPLATE_ID);
+          setGroups(template.groups || []);
+          setStatus("draft");
+        } else if (id) {
+          const practice = await api.getSession(id);
+          setPracticeName(practice.name);
+          setDate(practice.date);
+          setLocation(practice.location || "");
+          setStatus(practice.status);
+          setGroups(practice.groups || []);
+          setPracticeId(id);
         }
       } catch {
         toast.error("Failed to load data");
@@ -46,7 +62,7 @@ export default function SessionBuilder() {
       }
     };
     load();
-  }, [id]);
+  }, [id, isTemplate]);
 
   const assignedStudentIds = groups.flatMap((g: any) => g.students || []);
 
@@ -56,23 +72,24 @@ export default function SessionBuilder() {
       s.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const saveSession = async () => {
-    if (!sessionName || !date) {
-      toast.error("Name and date required");
+  const savePractice = async () => {
+    if (!practiceName || !date || !location) {
+      toast.error("Name, date, and location required");
       return;
     }
 
     setSaving(true);
     try {
-      let sid = sessionId;
-      if (!sid) {
-        const res = await api.createSession({ name: sessionName, date });
-        sid = res.id;
-        setSessionId(sid);
+      let pid = practiceId;
+      if (!pid) {
+        const res = await api.createSession({ name: practiceName, date, location });
+        pid = res.id;
+        setPracticeId(pid);
+        setGroups(res.groups || []);
       } else {
-        await api.updateSession(sid, { name: sessionName, date });
+        await api.updateSession(pid, { name: practiceName, date, location });
       }
-      toast.success("Session saved");
+      toast.success("Practice saved");
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -81,22 +98,25 @@ export default function SessionBuilder() {
   };
 
   const addGroup = async () => {
-    let sid = sessionId;
-    if (!sid) {
-      if (!sessionName || !date) {
-        toast.error("Save session first");
+    let pid = practiceId;
+    let currentGroups = groups;
+    if (!pid) {
+      if (!practiceName || !date || !location) {
+        toast.error("Save practice first");
         return;
       }
-      const res = await api.createSession({ name: sessionName, date });
-      sid = res.id;
-      setSessionId(sid);
+      const res = await api.createSession({ name: practiceName, date, location });
+      pid = res.id;
+      currentGroups = res.groups || [];
+      setPracticeId(pid);
+      setGroups(currentGroups);
     }
 
     try {
-      const res = await api.createGroup(sid, {
-        name: `Group ${groups.length + 1}`,
+      const res = await api.createGroup(pid, {
+        name: `Group ${currentGroups.length + 1}`,
       });
-      setGroups([...groups, { ...res, students: [] }]);
+      setGroups([...currentGroups, { ...res, students: [] }]);
       toast.success("Group added");
     } catch (err: any) {
       toast.error(err.message);
@@ -117,7 +137,7 @@ export default function SessionBuilder() {
     }
 
     try {
-      await api.updateGroup(sessionId, groupId, { name: trimmed });
+      await api.updateGroup(practiceId, groupId, { name: trimmed });
       setGroups((prev) =>
         prev.map((g) => (g.id === groupId ? { ...g, name: trimmed } : g))
       );
@@ -134,7 +154,7 @@ export default function SessionBuilder() {
 
   const saveGroupNotes = async (groupId: string, notes: string) => {
     try {
-      await api.updateGroup(sessionId, groupId, { notes });
+      await api.updateGroup(practiceId, groupId, { notes });
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -143,7 +163,7 @@ export default function SessionBuilder() {
   const setGroupCoaches = async (groupId: string, coachIds: string[]) => {
     const coach_id = coachIds.join(",");
     try {
-      await api.updateGroup(sessionId, groupId, { coach_id });
+      await api.updateGroup(practiceId, groupId, { coach_id });
       setGroups((prev) =>
         prev.map((g) => (g.id === groupId ? { ...g, coach_id } : g))
       );
@@ -172,7 +192,7 @@ export default function SessionBuilder() {
 
   const assignStudent = async (groupId: string, studentId: string) => {
     try {
-      await api.assignStudent(sessionId, groupId, studentId);
+      await api.assignStudent(practiceId, groupId, studentId);
       setGroups((prev) =>
         prev.map((g) =>
           g.id === groupId
@@ -187,7 +207,7 @@ export default function SessionBuilder() {
 
   const removeStudent = async (groupId: string, studentId: string) => {
     try {
-      await api.removeAssignment(sessionId, groupId, studentId);
+      await api.removeAssignment(practiceId, groupId, studentId);
       setGroups((prev) =>
         prev.map((g) =>
           g.id === groupId
@@ -207,7 +227,7 @@ export default function SessionBuilder() {
 
   const deleteGroup = async (groupId: string) => {
     try {
-      await api.deleteGroup(sessionId, groupId);
+      await api.deleteGroup(practiceId, groupId);
       setGroups((prev) => prev.filter((g) => g.id !== groupId));
       toast.success("Group deleted");
     } catch (err: any) {
@@ -215,15 +235,15 @@ export default function SessionBuilder() {
     }
   };
 
-  const activateSession = async () => {
+  const activatePractice = async () => {
     if (groups.length === 0) {
       toast.error("Add at least one group first");
       return;
     }
     try {
-      await api.updateSession(sessionId, { status: "active" });
+      await api.updateSession(practiceId, { status: "active" });
       setStatus("active");
-      toast.success("Session activated! Attendance can now be taken.");
+      toast.success("Practice activated! Attendance can now be taken.");
       navigate("/dashboard");
     } catch (err: any) {
       toast.error(err.message);
@@ -236,6 +256,14 @@ export default function SessionBuilder() {
 
   if (loading) return <TableSkeleton />;
 
+  if (isTemplate && !isHeadCoach) {
+    return (
+      <p className="text-slate-400 text-center py-16">
+        Only head coaches and team directors can edit the default practice.
+      </p>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
@@ -246,56 +274,82 @@ export default function SessionBuilder() {
           &larr; Back
         </button>
         <h1 className="text-2xl font-bold text-white">
-          {isEdit ? "Edit Session" : "New Session"}
+          {isTemplate
+            ? "Default Practice"
+            : isEdit
+              ? "Edit Practice"
+              : "New Practice"}
         </h1>
       </div>
 
-      <div className="bg-slate-900 rounded-xl border border-slate-800 p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">
-              Session Name
-            </label>
-            <input
-              value={sessionName}
-              onChange={(e) => setSessionName(e.target.value)}
-              placeholder="e.g. Tuesday 6/10 Practice"
-              className="w-full"
-              disabled={status !== "draft"}
-            />
+      {isTemplate && (
+        <p className="text-sm text-slate-400 mb-6">
+          These groups, coach assignments, and notes are used as the starting
+          point for every new practice. Edit them here, then adjust per
+          practice as needed.
+        </p>
+      )}
+
+      {!isTemplate && (
+        <div className="bg-slate-900 rounded-xl border border-slate-800 p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">
+                Practice Name
+              </label>
+              <input
+                value={practiceName}
+                onChange={(e) => setPracticeName(e.target.value)}
+                placeholder="e.g. Tuesday 6/10 Practice"
+                className="w-full"
+                disabled={status !== "draft"}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">Date</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full"
+                disabled={status !== "draft"}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">
+                Location
+              </label>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Corner Canyon Trailhead"
+                className="w-full"
+                disabled={status !== "draft"}
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full"
-              disabled={status !== "draft"}
-            />
+          <div className="flex flex-wrap gap-3 mt-4">
+            {status === "draft" && (
+              <>
+                <button
+                  onClick={savePractice}
+                  disabled={saving}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition text-sm"
+                >
+                  {saving ? "Saving..." : "Save Draft"}
+                </button>
+                <button
+                  onClick={activatePractice}
+                  disabled={!practiceId}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-semibold"
+                >
+                  Activate Practice
+                </button>
+              </>
+            )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-3 mt-4">
-          {status === "draft" && (
-            <>
-              <button
-                onClick={saveSession}
-                disabled={saving}
-                className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition text-sm"
-              >
-                {saving ? "Saving..." : "Save Draft"}
-              </button>
-              <button
-                onClick={activateSession}
-                disabled={!sessionId}
-                className="flex-1 sm:flex-none px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-semibold"
-              >
-                Activate Session
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-white">Groups</h2>
@@ -478,7 +532,11 @@ export default function SessionBuilder() {
 
         {groups.length === 0 && (
           <div className="col-span-full text-center py-12 text-slate-400">
-            <p>No groups yet. Add a group to start assigning students.</p>
+            <p>
+              {isTemplate
+                ? "No default groups yet. Add a group to define the standard structure for practices."
+                : "No groups yet. Add a group to start assigning students."}
+            </p>
           </div>
         )}
       </div>

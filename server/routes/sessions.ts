@@ -6,14 +6,62 @@ import {
   updateRowById,
   deleteRowById,
   upsertRow,
+  TEMPLATE_SESSION_ID,
 } from "../services/sheetsClient";
 import { requireCoach } from "../middleware/authMiddleware";
 
 const router = Router();
 
+async function cloneTemplateGroups(newSessionId: string) {
+  const [templateGroups, templateAssignments] = await Promise.all([
+    readSheet("session_groups"),
+    readSheet("group_assignments"),
+  ]);
+  const groupsToClone = templateGroups.filter(
+    (g) => g.session_id === TEMPLATE_SESSION_ID
+  );
+
+  const cloned: Record<string, any>[] = [];
+  for (const g of groupsToClone) {
+    const newGroupId = uuid();
+    await appendRow("session_groups", {
+      id: newGroupId,
+      session_id: newSessionId,
+      name: g.name,
+      coach_id: g.coach_id || "",
+      notes: g.notes || "",
+    });
+
+    const studentIds = templateAssignments
+      .filter((a) => a.group_id === g.id)
+      .map((a) => a.student_id);
+
+    for (const studentId of studentIds) {
+      await appendRow("group_assignments", {
+        id: uuid(),
+        session_id: newSessionId,
+        group_id: newGroupId,
+        student_id: studentId,
+      });
+    }
+
+    cloned.push({
+      id: newGroupId,
+      session_id: newSessionId,
+      name: g.name,
+      coach_id: g.coach_id || "",
+      notes: g.notes || "",
+      students: studentIds,
+    });
+  }
+  return cloned;
+}
+
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const sessions = await readSheet("sessions");
+    const sessions = (await readSheet("sessions")).filter(
+      (s) => s.status !== "template"
+    );
     const status = req.query.status as string | undefined;
     const filtered = status
       ? sessions.filter((s) => s.status === status)
@@ -64,11 +112,12 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 router.post("/", requireCoach, async (req: Request, res: Response) => {
   try {
-    const { name, date } = req.body;
-    if (!name || !date) {
-      res
-        .status(400)
-        .json({ error: "Name and date required", code: "BAD_REQUEST" });
+    const { name, date, location } = req.body;
+    if (!name || !date || !location) {
+      res.status(400).json({
+        error: "Name, date, and location required",
+        code: "BAD_REQUEST",
+      });
       return;
     }
 
@@ -78,12 +127,17 @@ router.post("/", requireCoach, async (req: Request, res: Response) => {
       id,
       date,
       name,
+      location,
       status: "draft",
       created_by: coach.id,
       created_at: new Date().toISOString(),
     });
 
-    res.status(201).json({ id, date, name, status: "draft" });
+    const groups = await cloneTemplateGroups(id);
+
+    res
+      .status(201)
+      .json({ id, date, name, location, status: "draft", groups });
   } catch (err) {
     console.error("Create session error:", err);
     res
@@ -113,6 +167,13 @@ router.put("/:id", requireCoach, async (req: Request, res: Response) => {
 router.delete("/:id", requireCoach, async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
+    if (id === TEMPLATE_SESSION_ID) {
+      res.status(400).json({
+        error: "Cannot delete the default practice template",
+        code: "BAD_REQUEST",
+      });
+      return;
+    }
     const sessions = await readSheet("sessions");
     const session = sessions.find((s) => s.id === id);
     if (!session) {

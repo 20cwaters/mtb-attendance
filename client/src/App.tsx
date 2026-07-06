@@ -70,6 +70,7 @@ export default function App() {
             element={<Roster isHeadCoach={isHeadCoach} />}
           />
           <Route path="/sessions/new" element={<SessionBuilder />} />
+          <Route path="/sessions/template" element={<SessionBuilder isTemplate />} />
           <Route path="/sessions/:id/edit" element={<SessionBuilder />} />
           <Route
             path="/sessions/:id/attendance"

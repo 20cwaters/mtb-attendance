@@ -18,7 +18,7 @@ const FILTERS = [
 ];
 
 export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [practices, setPractices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const navigate = useNavigate();
@@ -26,37 +26,56 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
   useEffect(() => {
     api
       .getSessions()
-      .then(setSessions)
+      .then(setPractices)
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
   const filtered =
     filter === "all"
-      ? sessions
-      : sessions.filter((s) => s.status === filter);
+      ? practices
+      : practices.filter((p) => p.status === filter);
 
   const counts: Record<string, number> = {
-    all: sessions.length,
-    active: sessions.filter((s) => s.status === "active").length,
-    completed: sessions.filter((s) => s.status === "completed").length,
-    draft: sessions.filter((s) => s.status === "draft").length,
+    all: practices.length,
+    active: practices.filter((p) => p.status === "active").length,
+    completed: practices.filter((p) => p.status === "completed").length,
+    draft: practices.filter((p) => p.status === "draft").length,
   };
 
-  const deletePractice = async (session: any) => {
-    if (!["draft", "completed"].includes(session.status)) return;
+  const deletePractice = async (practice: any) => {
+    if (!["draft", "completed"].includes(practice.status)) return;
 
     const confirmed = window.confirm(
-      `Delete "${session.name}"? This removes the practice, groups, assignments, and attendance records.`
+      `Delete "${practice.name}"? This removes the practice, groups, assignments, and attendance records.`
     );
     if (!confirmed) return;
 
     try {
-      await api.deleteSession(session.id);
-      setSessions((prev) => prev.filter((s) => s.id !== session.id));
+      await api.deleteSession(practice.id);
+      setPractices((prev) => prev.filter((p) => p.id !== practice.id));
       toast.success("Practice deleted");
     } catch (err: any) {
       toast.error(err.message || "Failed to delete practice");
+    }
+  };
+
+  const activatePractice = async (practice: any) => {
+    try {
+      const full = await api.getSession(practice.id);
+      if (!full.groups || full.groups.length === 0) {
+        toast.error("Add at least one group first");
+        return;
+      }
+      await api.updateSession(practice.id, { status: "active" });
+      setPractices((prev) =>
+        prev.map((p) =>
+          p.id === practice.id ? { ...p, status: "active" } : p
+        )
+      );
+      toast.success("Practice activated! Attendance can now be taken.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to activate practice");
     }
   };
 
@@ -73,10 +92,18 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
           </button>
           {isHeadCoach && (
             <button
+              onClick={() => navigate("/sessions/template")}
+              className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition text-sm"
+            >
+              Default Practice
+            </button>
+          )}
+          {isHeadCoach && (
+            <button
               onClick={() => navigate("/sessions/new")}
               className="flex-1 sm:flex-none px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg transition text-sm font-semibold"
             >
-              New Session
+              New Practice
             </button>
           )}
         </div>
@@ -109,58 +136,69 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
         <div className="text-center py-16 text-slate-400">
           <p className="text-lg mb-2">
             {filter === "all"
-              ? "No sessions yet"
-              : `No ${filter} sessions`}
+              ? "No practices yet"
+              : `No ${filter} practices`}
           </p>
           <p className="text-sm">
             {filter === "all"
-              ? "Create a new session to get started"
+              ? "Create a new practice to get started"
               : "Try a different filter"}
           </p>
         </div>
       ) : (
         <div className="grid gap-4">
-          {filtered.map((session) => (
+          {filtered.map((practice) => (
             <div
-              key={session.id}
+              key={practice.id}
               className="bg-slate-900 rounded-xl border border-slate-800 p-5 hover:border-slate-700 transition"
             >
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-white">
-                    {session.name}
+                    {practice.name}
                   </h3>
-                  <p className="text-slate-400 text-sm mt-1">{session.date}</p>
+                  <p className="text-slate-400 text-sm mt-1">
+                    {practice.date}
+                    {practice.location ? ` · ${practice.location}` : ""}
+                  </p>
                 </div>
-                <StatusBadge status={session.status} />
+                <StatusBadge status={practice.status} />
               </div>
 
               <div className="flex flex-wrap gap-2 mt-4">
-                {session.status === "draft" && (
+                {practice.status === "draft" && (
                   <button
                     onClick={() =>
-                      navigate(`/sessions/${session.id}/edit`)
+                      navigate(`/sessions/${practice.id}/edit`)
                     }
                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sm text-white rounded-lg border border-slate-700 transition"
                   >
                     Edit
                   </button>
                 )}
-                {session.status === "active" && (
+                {isHeadCoach && practice.status === "draft" && (
+                  <button
+                    onClick={() => activatePractice(practice)}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-sm text-white rounded-lg font-semibold transition"
+                  >
+                    Activate
+                  </button>
+                )}
+                {practice.status === "active" && (
                   <button
                     onClick={() =>
-                      navigate(`/sessions/${session.id}/attendance`)
+                      navigate(`/sessions/${practice.id}/attendance`)
                     }
                     className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-sm text-white rounded-lg font-semibold transition"
                   >
                     Take Attendance
                   </button>
                 )}
-                {(session.status === "active" ||
-                  session.status === "completed") && (
+                {(practice.status === "active" ||
+                  practice.status === "completed") && (
                   <button
                     onClick={() =>
-                      navigate(`/sessions/${session.id}/report`)
+                      navigate(`/sessions/${practice.id}/report`)
                     }
                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sm text-white rounded-lg border border-slate-700 transition"
                   >
@@ -168,10 +206,10 @@ export default function Dashboard({ isHeadCoach, coachId }: DashboardProps) {
                   </button>
                 )}
                 {isHeadCoach &&
-                  (session.status === "draft" ||
-                    session.status === "completed") && (
+                  (practice.status === "draft" ||
+                    practice.status === "completed") && (
                     <button
-                      onClick={() => deletePractice(session)}
+                      onClick={() => deletePractice(practice)}
                       className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900/70 text-sm text-red-200 rounded-lg border border-red-800/70 transition"
                     >
                       Delete

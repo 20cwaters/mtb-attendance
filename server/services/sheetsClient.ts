@@ -24,10 +24,14 @@ export function getSheets(): sheets_v4.Sheets {
   return sheetsInstance;
 }
 
+// Fixed row id for the head coach / team director-editable default practice
+// template. Its groups get cloned into every newly created practice.
+export const TEMPLATE_SESSION_ID = "default-template";
+
 const REQUIRED_SHEETS: Record<string, string[]> = {
   coaches: ["id", "name", "email", "pin", "role", "phone", "emergency_contact"],
   students: ["id", "name", "grade", "emergency_contact", "phone", "active"],
-  sessions: ["id", "date", "name", "status", "created_by", "created_at"],
+  sessions: ["id", "date", "name", "location", "status", "created_by", "created_at"],
   session_groups: ["id", "session_id", "name", "coach_id", "notes"],
   group_assignments: ["id", "session_id", "group_id", "student_id"],
   attendance: [
@@ -68,6 +72,21 @@ export async function ensureSheets(): Promise<void> {
       console.log(`Created sheet: ${sheetName}`);
     }
   }
+
+  const sessions = await readSheet("sessions");
+  if (!sessions.find((s) => s.id === TEMPLATE_SESSION_ID)) {
+    await appendRow("sessions", {
+      id: TEMPLATE_SESSION_ID,
+      date: "",
+      name: "Default Practice",
+      location: "",
+      status: "template",
+      created_by: "",
+      created_at: new Date().toISOString(),
+    });
+    console.log("Created default practice template.");
+  }
+
   console.log("All required sheets verified.");
 }
 

@@ -37,9 +37,9 @@ interface AttendanceProps {
 }
 
 export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
-  const { id: sessionId } = useParams<{ id: string }>();
+  const { id: practiceId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [session, setSession] = useState<any>(null);
+  const [practice, setPractice] = useState<any>(null);
   const [groups, setGroups] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<Record<string, any>>({});
@@ -49,16 +49,16 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
 
   useEffect(() => {
     const load = async () => {
-      if (!sessionId) return;
+      if (!practiceId) return;
       try {
-        const [sess, allStudents, att] = await Promise.all([
-          api.getSession(sessionId),
+        const [prac, allStudents, att] = await Promise.all([
+          api.getSession(practiceId),
           api.getStudents(),
-          api.getAttendance(sessionId),
+          api.getAttendance(practiceId),
         ]);
-        setSession(sess);
+        setPractice(prac);
         setStudents(allStudents);
-        setGroups(sess.groups || []);
+        setGroups(prac.groups || []);
 
         const attMap: Record<string, any> = {};
         att.forEach((a: any) => {
@@ -66,13 +66,13 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
         });
         setAttendance(attMap);
       } catch {
-        toast.error("Failed to load session");
+        toast.error("Failed to load practice");
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [sessionId]);
+  }, [practiceId]);
 
   const saveAttendance = useCallback(
     (groupId: string, studentId: string, status: string, note: string) => {
@@ -82,7 +82,7 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
       }
       debounceTimers.current[key] = setTimeout(async () => {
         try {
-          await api.saveAttendance(sessionId!, {
+          await api.saveAttendance(practiceId!, {
             group_id: groupId,
             student_id: studentId,
             status,
@@ -93,7 +93,7 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
         }
       }, 800);
     },
-    [sessionId]
+    [practiceId]
   );
 
   const toggleStatus = (
@@ -165,14 +165,14 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
 
   if (loading) return <TableSkeleton />;
 
-  if (!session) {
-    return <p className="text-slate-400 text-center py-16">Session not found</p>;
+  if (!practice) {
+    return <p className="text-slate-400 text-center py-16">Practice not found</p>;
   }
 
-  if (session.status !== "active") {
+  if (practice.status !== "active") {
     return (
       <p className="text-slate-400 text-center py-16">
-        Session is not active. Attendance can only be taken for active sessions.
+        Practice is not active. Attendance can only be taken for active practices.
       </p>
     );
   }
@@ -189,8 +189,11 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
           &larr; Back
         </button>
         <div>
-          <h1 className="text-xl font-bold text-white">{session.name}</h1>
-          <p className="text-sm text-slate-400">{session.date}</p>
+          <h1 className="text-xl font-bold text-white">{practice.name}</h1>
+          <p className="text-sm text-slate-400">
+            {practice.date}
+            {practice.location ? ` · ${practice.location}` : ""}
+          </p>
         </div>
       </div>
 
@@ -312,7 +315,7 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
 
       {visibleGroups.length === 0 && (
         <p className="text-center py-16 text-slate-400">
-          You don't have any assigned groups for this session.
+          You don't have any assigned groups for this practice.
         </p>
       )}
     </div>

@@ -187,7 +187,7 @@ export default function Roster({ isHeadCoach }: { isHeadCoach: boolean }) {
               : "bg-slate-800 text-slate-300 hover:bg-slate-700"
           }`}
         >
-          Students
+          Team
         </button>
         {isHeadCoach && (
           <button

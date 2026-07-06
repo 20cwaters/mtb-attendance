@@ -6,7 +6,7 @@ import { TableSkeleton } from "../components/Skeleton";
 import toast from "react-hot-toast";
 
 export default function Report() {
-  const { id: sessionId } = useParams<{ id: string }>();
+  const { id: practiceId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -14,19 +14,19 @@ export default function Report() {
   const [completing, setCompleting] = useState(false);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!practiceId) return;
     api
-      .getReport(sessionId)
+      .getReport(practiceId)
       .then(setReport)
       .catch(() => toast.error("Failed to load report"))
       .finally(() => setLoading(false));
-  }, [sessionId]);
+  }, [practiceId]);
 
   const handleExport = async () => {
-    if (!sessionId) return;
+    if (!practiceId) return;
     setExporting(true);
     try {
-      const result = await api.exportReport(sessionId);
+      const result = await api.exportReport(practiceId);
       toast.success("Report exported to Google Sheets!");
       if (result.url) {
         window.open(result.url, "_blank");
@@ -39,11 +39,11 @@ export default function Report() {
   };
 
   const handleComplete = async () => {
-    if (!sessionId) return;
+    if (!practiceId) return;
     setCompleting(true);
     try {
-      await api.updateSession(sessionId, { status: "completed" });
-      toast.success("Session marked as completed");
+      await api.updateSession(practiceId, { status: "completed" });
+      toast.success("Practice marked as completed");
       navigate("/dashboard");
     } catch (err: any) {
       toast.error(err.message);
@@ -59,7 +59,7 @@ export default function Report() {
     );
   }
 
-  const { session, groups, summary } = report;
+  const { session: practice, groups, summary } = report;
 
   return (
     <div>
@@ -71,8 +71,11 @@ export default function Report() {
           &larr; Back
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-white">{session.name}</h1>
-          <p className="text-sm text-slate-400">{session.date}</p>
+          <h1 className="text-2xl font-bold text-white">{practice.name}</h1>
+          <p className="text-sm text-slate-400">
+            {practice.date}
+            {practice.location ? ` · ${practice.location}` : ""}
+          </p>
         </div>
       </div>
 
@@ -168,13 +171,13 @@ export default function Report() {
         >
           {exporting ? "Exporting..." : "Export to Google Sheets"}
         </button>
-        {session.status === "active" && (
+        {practice.status === "active" && (
           <button
             onClick={handleComplete}
             disabled={completing}
             className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition font-semibold"
           >
-            {completing ? "Completing..." : "Mark Session Complete"}
+            {completing ? "Completing..." : "Mark Practice Complete"}
           </button>
         )}
       </div>
