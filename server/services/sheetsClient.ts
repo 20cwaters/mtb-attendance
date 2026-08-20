@@ -90,9 +90,24 @@ export async function ensureSheets(): Promise<void> {
   console.log("All required sheets verified.");
 }
 
-export async function readSheet(
-  sheetName: string
-): Promise<Record<string, string>[]> {
+// --- Read cache -----------------------------------------------------------
+// Google Sheets' free tier allows only 60 read requests/min/user. Without
+// caching, a single page load can fire 5+ full-sheet reads and gaxios retries
+// each failure, which quickly trips a 429 quota error. We cache each sheet's
+// parsed rows for a few seconds and de-duplicate concurrent reads, then
+// invalidate the relevant sheet whenever we write to it.
+type Row = Record<string, string>;
+
+const CACHE_TTL_MS = Number(process.env.SHEETS_CACHE_TTL_MS) || 15000;
+const readCache = new Map<string, { data: Row[]; ts: number }>();
+const inflight = new Map<string, Promise<Row[]>>();
+
+function invalidateSheet(sheetName: string): void {
+  readCache.delete(sheetName);
+  inflight.delete(sheetName);
+}
+
+async function fetchSheet(sheetName: string): Promise<Row[]> {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
 
@@ -106,12 +121,42 @@ export async function readSheet(
 
   const headers = rows[0];
   return rows.slice(1).map((row) => {
-    const obj: Record<string, string> = {};
+    const obj: Row = {};
     headers.forEach((h, i) => {
-      obj[h] = row[i] || "";
+      obj[h] = (row[i] as string) || "";
     });
     return obj;
   });
+}
+
+export async function readSheet(
+  sheetName: string,
+  opts?: { force?: boolean }
+): Promise<Row[]> {
+  const now = Date.now();
+
+  if (!opts?.force) {
+    const hit = readCache.get(sheetName);
+    if (hit && now - hit.ts < CACHE_TTL_MS) {
+      return hit.data.map((r) => ({ ...r }));
+    }
+    const pending = inflight.get(sheetName);
+    if (pending) return (await pending).map((r) => ({ ...r }));
+  }
+
+  const p = fetchSheet(sheetName)
+    .then((data) => {
+      readCache.set(sheetName, { data, ts: Date.now() });
+      inflight.delete(sheetName);
+      return data;
+    })
+    .catch((err) => {
+      inflight.delete(sheetName);
+      throw err;
+    });
+
+  inflight.set(sheetName, p);
+  return (await p).map((r) => ({ ...r }));
 }
 
 export async function appendRow(
@@ -121,12 +166,16 @@ export async function appendRow(
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
 
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${sheetName}!1:1`,
-  });
-
-  const headers = res.data.values?.[0] || [];
+  // Prefer the known schema headers to avoid an extra read request; only fall
+  // back to reading row 1 for sheets we don't have a schema for.
+  let headers: string[] = REQUIRED_SHEETS[sheetName];
+  if (!headers) {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!1:1`,
+    });
+    headers = (res.data.values?.[0] as string[]) || [];
+  }
   const values = headers.map((h: string) => row[h] || "");
 
   await sheets.spreadsheets.values.append({
@@ -135,6 +184,8 @@ export async function appendRow(
     valueInputOption: "RAW",
     requestBody: { values: [values] },
   });
+
+  invalidateSheet(sheetName);
 }
 
 export async function updateRowById(
@@ -176,6 +227,7 @@ export async function updateRowById(
     requestBody: { values: [updatedRow] },
   });
 
+  invalidateSheet(sheetName);
   return true;
 }
 
@@ -227,6 +279,7 @@ export async function deleteRowById(
     },
   });
 
+  invalidateSheet(sheetName);
   return true;
 }
 
