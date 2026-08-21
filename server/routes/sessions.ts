@@ -280,6 +280,21 @@ router.put(
     try {
       const gid = req.params.gid as string;
       const updates = req.body;
+
+      const groups = await readSheet("session_groups");
+      const group = groups.find((g) => g.id === gid);
+      if (!group) {
+        res.status(404).json({ error: "Group not found", code: "NOT_FOUND" });
+        return;
+      }
+      if (group.submitted_at) {
+        res.status(400).json({
+          error: "Group has been submitted. Reopen it to make changes.",
+          code: "GROUP_SUBMITTED",
+        });
+        return;
+      }
+
       const updated = await updateRowById("session_groups", gid, updates);
       if (!updated) {
         res.status(404).json({ error: "Group not found", code: "NOT_FOUND" });
@@ -291,6 +306,98 @@ router.put(
       res
         .status(500)
         .json({ error: "Failed to update group", code: "SERVER_ERROR" });
+    }
+  }
+);
+
+// Coach marks their group's attendance + practice comments as final.
+router.post(
+  "/:id/groups/:gid/submit",
+  requireCoach,
+  async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id as string;
+      const gid = req.params.gid as string;
+      const { coach_comment } = req.body;
+      const coach = (req as any).coach;
+
+      const groups = await readSheet("session_groups");
+      const group = groups.find((g) => g.id === gid);
+      if (!group || group.session_id !== sessionId) {
+        res.status(404).json({ error: "Group not found", code: "NOT_FOUND" });
+        return;
+      }
+      if (group.submitted_at) {
+        res.status(400).json({
+          error: "Group already submitted",
+          code: "GROUP_SUBMITTED",
+        });
+        return;
+      }
+
+      const [assignments, attendance] = await Promise.all([
+        readSheet("group_assignments"),
+        readSheet("attendance", { force: true }),
+      ]);
+      const groupStudents = assignments.filter(
+        (a) => a.session_id === sessionId && a.group_id === gid
+      );
+      const unmarked = groupStudents.filter((a) => {
+        const att = attendance.find(
+          (r) =>
+            r.session_id === sessionId &&
+            r.group_id === gid &&
+            r.student_id === a.student_id
+        );
+        return !att?.status;
+      });
+      if (unmarked.length > 0) {
+        res.status(400).json({
+          error: `${unmarked.length} student${
+            unmarked.length === 1 ? "" : "s"
+          } still unmarked`,
+          code: "INCOMPLETE_ATTENDANCE",
+        });
+        return;
+      }
+
+      const submitted_at = new Date().toISOString();
+      await updateRowById("session_groups", gid, {
+        coach_comment: coach_comment ?? group.coach_comment ?? "",
+        submitted_at,
+        submitted_by: coach.id,
+      });
+
+      res.json({ success: true, submitted_at, submitted_by: coach.id });
+    } catch (err) {
+      console.error("Submit group error:", err);
+      res
+        .status(500)
+        .json({ error: "Failed to submit group", code: "SERVER_ERROR" });
+    }
+  }
+);
+
+router.post(
+  "/:id/groups/:gid/reopen",
+  requireCoach,
+  async (req: Request, res: Response) => {
+    try {
+      const gid = req.params.gid as string;
+      const updated = await updateRowById("session_groups", gid, {
+        submitted_at: "",
+        submitted_by: "",
+      });
+      if (!updated) {
+        res.status(404).json({ error: "Group not found", code: "NOT_FOUND" });
+        return;
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Reopen group error:", err);
+      res
+        .status(500)
+        .json({ error: "Failed to reopen group", code: "SERVER_ERROR" });
     }
   }
 );
@@ -435,6 +542,16 @@ router.post(
         res.status(400).json({
           error: "group_id, student_id, and status required",
           code: "BAD_REQUEST",
+        });
+        return;
+      }
+
+      const groups = await readSheet("session_groups");
+      const group = groups.find((g) => g.id === group_id);
+      if (group?.submitted_at) {
+        res.status(400).json({
+          error: "Group has been submitted. Reopen it to make changes.",
+          code: "GROUP_SUBMITTED",
         });
         return;
       }

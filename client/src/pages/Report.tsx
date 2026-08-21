@@ -122,9 +122,32 @@ export default function Report() {
               Coach: {groupData.coachName}
             </p>
             {groupData.group.notes && (
-              <p className="text-sm text-slate-300 mt-2 bg-slate-800/50 rounded-lg px-3 py-2">
-                {groupData.group.notes}
+              <div className="mt-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                  Plan
+                </p>
+                <p className="text-sm text-slate-300 bg-slate-800/50 rounded-lg px-3 py-2">
+                  {groupData.group.notes}
+                </p>
+              </div>
+            )}
+            {groupData.group.coach_comment && (
+              <div className="mt-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                  Coach Comments
+                </p>
+                <p className="text-sm text-slate-300 bg-slate-800/50 rounded-lg px-3 py-2 whitespace-pre-wrap">
+                  {groupData.group.coach_comment}
+                </p>
+              </div>
+            )}
+            {groupData.group.submitted_at ? (
+              <p className="text-xs text-green-400 mt-2">
+                Submitted by {groupData.submittedByName} on{" "}
+                {new Date(groupData.group.submitted_at).toLocaleString()}
               </p>
+            ) : (
+              <p className="text-xs text-yellow-400 mt-2">Not yet submitted</p>
             )}
           </div>
           <table className="w-full">

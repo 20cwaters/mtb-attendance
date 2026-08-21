@@ -32,7 +32,16 @@ const REQUIRED_SHEETS: Record<string, string[]> = {
   coaches: ["id", "name", "email", "pin", "role", "phone", "emergency_contact"],
   students: ["id", "name", "grade", "emergency_contact", "phone", "active"],
   sessions: ["id", "date", "name", "location", "status", "created_by", "created_at"],
-  session_groups: ["id", "session_id", "name", "coach_id", "notes"],
+  session_groups: [
+    "id",
+    "session_id",
+    "name",
+    "coach_id",
+    "notes",
+    "coach_comment",
+    "submitted_at",
+    "submitted_by",
+  ],
   group_assignments: ["id", "session_id", "group_id", "student_id"],
   attendance: [
     "id",
@@ -45,6 +54,59 @@ const REQUIRED_SHEETS: Record<string, string[]> = {
     "marked_at",
   ],
 };
+
+// A sheet's real column order can differ from REQUIRED_SHEETS — older sheets
+// have newer columns appended at the end rather than in schema position — so
+// writes must follow row 1, not the schema. Cache it per process.
+const headerCache = new Map<string, string[]>();
+
+async function getHeaders(sheetName: string): Promise<string[]> {
+  const cached = headerCache.get(sheetName);
+  if (cached) return cached;
+
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: getSpreadsheetId(),
+    range: `${sheetName}!1:1`,
+  });
+  const headers =
+    (res.data.values?.[0] as string[]) || REQUIRED_SHEETS[sheetName] || [];
+  headerCache.set(sheetName, headers);
+  return headers;
+}
+
+// Sheets created by an older version of the app are missing columns added
+// since. Append any missing headers to the end of row 1 so reads/writes for
+// the new fields line up instead of silently landing in unnamed columns.
+async function ensureHeaders(
+  sheetName: string,
+  required: string[]
+): Promise<void> {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${sheetName}!1:1`,
+  });
+  const existing = (res.data.values?.[0] as string[]) || [];
+  const missing = required.filter((h) => !existing.includes(h));
+  if (missing.length === 0) {
+    headerCache.set(sheetName, existing);
+    return;
+  }
+
+  const updated = [...existing, ...missing];
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${sheetName}!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [updated] },
+  });
+  headerCache.set(sheetName, updated);
+  invalidateSheet(sheetName);
+  console.log(`Added columns to ${sheetName}: ${missing.join(", ")}`);
+}
 
 export async function ensureSheets(): Promise<void> {
   const sheets = getSheets();
@@ -69,7 +131,10 @@ export async function ensureSheets(): Promise<void> {
         valueInputOption: "RAW",
         requestBody: { values: [headers] },
       });
+      headerCache.set(sheetName, headers);
       console.log(`Created sheet: ${sheetName}`);
+    } else {
+      await ensureHeaders(sheetName, headers);
     }
   }
 
@@ -166,16 +231,7 @@ export async function appendRow(
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
 
-  // Prefer the known schema headers to avoid an extra read request; only fall
-  // back to reading row 1 for sheets we don't have a schema for.
-  let headers: string[] = REQUIRED_SHEETS[sheetName];
-  if (!headers) {
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${sheetName}!1:1`,
-    });
-    headers = (res.data.values?.[0] as string[]) || [];
-  }
+  const headers = await getHeaders(sheetName);
   const values = headers.map((h: string) => row[h] || "");
 
   await sheets.spreadsheets.values.append({

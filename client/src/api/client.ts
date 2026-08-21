@@ -119,6 +119,15 @@ export const api = {
       `/api/sessions/${sessionId}/groups/${groupId}/assign/${studentId}`,
       { method: "DELETE" }
     ),
+  submitGroup: (sessionId: string, groupId: string, coachComment: string) =>
+    request<{ submitted_at: string; submitted_by: string }>(
+      `/api/sessions/${sessionId}/groups/${groupId}/submit`,
+      { method: "POST", body: JSON.stringify({ coach_comment: coachComment }) }
+    ),
+  reopenGroup: (sessionId: string, groupId: string) =>
+    request<any>(`/api/sessions/${sessionId}/groups/${groupId}/reopen`, {
+      method: "POST",
+    }),
 
   // Attendance
   getAttendance: (sessionId: string) =>

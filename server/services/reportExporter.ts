@@ -5,6 +5,7 @@ interface ReportData {
   groups: {
     group: Record<string, string>;
     coachName: string;
+    submittedByName: string;
     students: {
       name: string;
       status: string;
@@ -82,6 +83,9 @@ export async function getReportData(sessionId: string): Promise<ReportData> {
     return {
       group,
       coachName: coachNames || "Unassigned",
+      submittedByName: group.submitted_by
+        ? coaches.find((c) => c.id === group.submitted_by)?.name || "Unknown"
+        : "",
       students: studentRows,
     };
   });
@@ -147,7 +151,21 @@ export async function exportReportToSheet(sessionId: string): Promise<string> {
     rowIndex++;
 
     if (groupData.group.notes) {
-      rows.push([`Notes: ${groupData.group.notes}`]);
+      rows.push([`Plan: ${groupData.group.notes}`]);
+      rowIndex++;
+    }
+
+    if (groupData.group.coach_comment) {
+      rows.push([`Coach Comments: ${groupData.group.coach_comment}`]);
+      rowIndex++;
+    }
+
+    if (groupData.group.submitted_at) {
+      rows.push([
+        `Submitted by ${groupData.submittedByName} at ${new Date(
+          groupData.group.submitted_at
+        ).toLocaleString()}`,
+      ]);
       rowIndex++;
     }
 

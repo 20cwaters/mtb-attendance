@@ -43,22 +43,27 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
   const [groups, setGroups] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<Record<string, any>>({});
+  const [coaches, setCoaches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingSaves = useRef<Record<string, () => Promise<void>>>({});
 
   useEffect(() => {
     const load = async () => {
       if (!practiceId) return;
       try {
-        const [prac, allStudents, att] = await Promise.all([
+        const [prac, allStudents, att, coachList] = await Promise.all([
           api.getSession(practiceId),
           api.getStudents(),
           api.getAttendance(practiceId),
+          api.getCoachNames(),
         ]);
         setPractice(prac);
         setStudents(allStudents);
         setGroups(prac.groups || []);
+        setCoaches(coachList);
 
         const attMap: Record<string, any> = {};
         att.forEach((a: any) => {
@@ -80,21 +85,37 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
       if (debounceTimers.current[key]) {
         clearTimeout(debounceTimers.current[key]);
       }
-      debounceTimers.current[key] = setTimeout(async () => {
-        try {
-          await api.saveAttendance(practiceId!, {
-            group_id: groupId,
-            student_id: studentId,
-            status,
-            note,
-          });
-        } catch {
-          toast.error("Failed to save attendance");
-        }
+
+      const run = async () => {
+        delete pendingSaves.current[key];
+        delete debounceTimers.current[key];
+        await api.saveAttendance(practiceId!, {
+          group_id: groupId,
+          student_id: studentId,
+          status,
+          note,
+        });
+      };
+
+      pendingSaves.current[key] = run;
+      debounceTimers.current[key] = setTimeout(() => {
+        run().catch(() => toast.error("Failed to save attendance"));
       }, 800);
     },
     [practiceId]
   );
+
+  // Submitting has to land after every debounced edit, or the server would
+  // reject the writes still in flight against the now-submitted group.
+  const flushPendingSaves = useCallback(async (groupId: string) => {
+    const keys = Object.keys(pendingSaves.current).filter((k) =>
+      k.startsWith(`${groupId}_`)
+    );
+    for (const key of keys) {
+      clearTimeout(debounceTimers.current[key]);
+      await pendingSaves.current[key]();
+    }
+  }, []);
 
   const toggleStatus = (
     groupId: string,
@@ -154,8 +175,94 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
     });
   };
 
+  const setGroupComment = (groupId: string, comment: string) => {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId ? { ...g, coach_comment: comment } : g
+      )
+    );
+  };
+
+  const saveGroupComment = async (groupId: string, comment: string) => {
+    try {
+      await api.updateGroup(practiceId!, groupId, { coach_comment: comment });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save comments");
+    }
+  };
+
+  const submitGroup = async (group: any) => {
+    const total = (group.students || []).length;
+    const unmarked = (group.students || []).filter(
+      (sid: string) => !attendance[`${group.id}_${sid}`]?.status
+    ).length;
+
+    if (total === 0) {
+      toast.error("No students assigned to this group");
+      return;
+    }
+    if (unmarked > 0) {
+      toast.error(
+        `Mark all students first — ${unmarked} still unmarked`
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Submit attendance for ${group.name}? You can reopen it if you need to make changes.`
+      )
+    ) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await flushPendingSaves(group.id);
+      const res = await api.submitGroup(
+        practiceId!,
+        group.id,
+        group.coach_comment || ""
+      );
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === group.id
+            ? {
+                ...g,
+                submitted_at: res.submitted_at,
+                submitted_by: res.submitted_by,
+              }
+            : g
+        )
+      );
+      toast.success(`${group.name} submitted`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const reopenGroup = async (group: any) => {
+    try {
+      await api.reopenGroup(practiceId!, group.id);
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === group.id
+            ? { ...g, submitted_at: "", submitted_by: "" }
+            : g
+        )
+      );
+      toast.success(`${group.name} reopened for edits`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reopen");
+    }
+  };
+
   const getStudentName = (sid: string) =>
     students.find((s) => s.id === sid)?.name || "Unknown";
+
+  const getCoachName = (cid: string) =>
+    coaches.find((c) => c.id === cid)?.name || "Unknown";
 
   const visibleGroups = isHeadCoach
     ? groups
@@ -178,6 +285,11 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
   }
 
   const currentGroup = visibleGroups[activeTab];
+  const isSubmitted = !!currentGroup?.submitted_at;
+  const totalStudents = (currentGroup?.students || []).length;
+  const markedStudents = (currentGroup?.students || []).filter(
+    (sid: string) => attendance[`${currentGroup.id}_${sid}`]?.status
+  ).length;
 
   return (
     <div>
@@ -209,6 +321,7 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
                   : "bg-slate-800 text-slate-300 hover:bg-slate-700"
               }`}
             >
+              {g.submitted_at && <span className="mr-1.5">&#10003;</span>}
               {g.name}
             </button>
           ))}
@@ -217,28 +330,39 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
 
       {currentGroup && (
         <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-white">
                 {currentGroup.name}
               </h2>
               <p className="text-sm text-slate-400">
-                {(() => {
-                  const total = (currentGroup.students || []).length;
-                  const marked = (currentGroup.students || []).filter(
-                    (sid: string) => attendance[`${currentGroup.id}_${sid}`]?.status
-                  ).length;
-                  return `${marked} / ${total} students marked`;
-                })()}
+                {markedStudents} / {totalStudents} students marked
               </p>
             </div>
-            <button
-              onClick={() => markAllPresent(currentGroup)}
-              className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 text-green-300 rounded-lg text-sm border border-green-600/30 transition"
-            >
-              Mark All Present
-            </button>
+            {!isSubmitted && (
+              <button
+                onClick={() => markAllPresent(currentGroup)}
+                className="shrink-0 px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 text-green-300 rounded-lg text-sm border border-green-600/30 transition"
+              >
+                Mark All Present
+              </button>
+            )}
           </div>
+
+          {isSubmitted && (
+            <div className="p-4 border-b border-slate-800 bg-green-900/20 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-green-300">
+                Submitted by {getCoachName(currentGroup.submitted_by)} on{" "}
+                {new Date(currentGroup.submitted_at).toLocaleString()}
+              </p>
+              <button
+                onClick={() => reopenGroup(currentGroup)}
+                className="shrink-0 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm border border-slate-700 transition"
+              >
+                Reopen to Edit
+              </button>
+            </div>
+          )}
 
           {currentGroup.notes && (
             <div className="p-4 border-b border-slate-800">
@@ -277,6 +401,7 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
                       return (
                         <button
                           key={s}
+                          disabled={isSubmitted}
                           onClick={() =>
                             toggleStatus(currentGroup.id, sid, s)
                           }
@@ -284,7 +409,11 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
                             isActive
                               ? `${style.active} text-white`
                               : `${style.bg} text-slate-300 hover:brightness-110`
-                          }`}
+                          } ${
+                            isSubmitted && !isActive
+                              ? "opacity-40 cursor-not-allowed"
+                              : ""
+                          } ${isSubmitted ? "hover:brightness-100" : ""}`}
                         >
                           {LABELS[s]}
                         </button>
@@ -295,10 +424,11 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
                   <input
                     placeholder="Notes (injury details, early departure reason...)"
                     value={att.note || ""}
+                    disabled={isSubmitted}
                     onChange={(e) =>
                       setStudentNote(currentGroup.id, sid, e.target.value)
                     }
-                    className="w-full text-sm"
+                    className="w-full text-sm disabled:opacity-60"
                   />
                 </div>
               );
@@ -309,6 +439,57 @@ export default function Attendance({ coachId, isHeadCoach }: AttendanceProps) {
             <p className="text-center py-8 text-slate-400">
               No students assigned to this group
             </p>
+          )}
+
+          <div className="p-4 border-t border-slate-800">
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Practice Comments
+            </label>
+            <p className="text-xs text-slate-500 mb-2">
+              How did practice go for {currentGroup.name}? Route ridden, skills
+              covered, incidents, anything the head coach should know.
+            </p>
+            {isSubmitted ? (
+              <p className="text-sm text-slate-300 bg-slate-800/50 rounded-lg px-3 py-2 whitespace-pre-wrap">
+                {currentGroup.coach_comment || "No comments added"}
+              </p>
+            ) : (
+              <textarea
+                placeholder="e.g. Rode the lower loop, worked on cornering. Strong effort overall; two riders struggled on the climb."
+                value={currentGroup.coach_comment || ""}
+                onChange={(e) =>
+                  setGroupComment(currentGroup.id, e.target.value)
+                }
+                onBlur={(e) =>
+                  saveGroupComment(currentGroup.id, e.target.value)
+                }
+                rows={4}
+                className="w-full text-sm"
+              />
+            )}
+          </div>
+
+          {!isSubmitted && (
+            <div className="p-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-400">
+                {markedStudents < totalStudents
+                  ? `${totalStudents - markedStudents} student${
+                      totalStudents - markedStudents === 1 ? "" : "s"
+                    } still unmarked`
+                  : "All students marked — ready to submit"}
+              </p>
+              <button
+                onClick={() => submitGroup(currentGroup)}
+                disabled={
+                  submitting ||
+                  totalStudents === 0 ||
+                  markedStudents < totalStudents
+                }
+                className="w-full sm:w-auto px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition font-semibold"
+              >
+                {submitting ? "Submitting..." : "Submit Attendance"}
+              </button>
+            </div>
           )}
         </div>
       )}

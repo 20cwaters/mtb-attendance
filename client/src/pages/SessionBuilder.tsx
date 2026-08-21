@@ -30,6 +30,14 @@ export default function SessionBuilder({
   const [saving, setSaving] = useState(false);
   const [practiceId, setPracticeId] = useState(id || "");
   const [search, setSearch] = useState("");
+  // Template edits are held locally until "Save Changes"; practice drafts keep
+  // saving on blur, so this stays empty there.
+  const [dirtyGroupIds, setDirtyGroupIds] = useState<string[]>([]);
+
+  const markDirty = (groupId: string) =>
+    setDirtyGroupIds((prev) =>
+      prev.includes(groupId) ? prev : [...prev, groupId]
+    );
 
   useEffect(() => {
     const load = async () => {
@@ -63,6 +71,15 @@ export default function SessionBuilder({
     };
     load();
   }, [id, isTemplate]);
+
+  const hasUnsavedChanges = dirtyGroupIds.length > 0;
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges]);
 
   const assignedStudentIds = groups.flatMap((g: any) => g.students || []);
 
@@ -127,6 +144,7 @@ export default function SessionBuilder({
     setGroups((prev) =>
       prev.map((g) => (g.id === groupId ? { ...g, name } : g))
     );
+    markDirty(groupId);
   };
 
   const saveGroupName = async (groupId: string, name: string) => {
@@ -141,6 +159,7 @@ export default function SessionBuilder({
       setGroups((prev) =>
         prev.map((g) => (g.id === groupId ? { ...g, name: trimmed } : g))
       );
+      setDirtyGroupIds((prev) => prev.filter((gid) => gid !== groupId));
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -150,13 +169,44 @@ export default function SessionBuilder({
     setGroups((prev) =>
       prev.map((g) => (g.id === groupId ? { ...g, notes } : g))
     );
+    markDirty(groupId);
   };
 
   const saveGroupNotes = async (groupId: string, notes: string) => {
     try {
       await api.updateGroup(practiceId, groupId, { notes });
+      setDirtyGroupIds((prev) => prev.filter((gid) => gid !== groupId));
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const saveTemplateChanges = async () => {
+    const pending = groups.filter((g) => dirtyGroupIds.includes(g.id));
+    if (pending.some((g) => !(g.name || "").trim())) {
+      toast.error("Every group needs a name");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      for (const g of pending) {
+        await api.updateGroup(practiceId, g.id, {
+          name: g.name.trim(),
+          notes: g.notes || "",
+        });
+      }
+      setGroups((prev) =>
+        prev.map((g) =>
+          dirtyGroupIds.includes(g.id) ? { ...g, name: g.name.trim() } : g
+        )
+      );
+      setDirtyGroupIds([]);
+      toast.success("Default practice saved");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save changes");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -254,6 +304,16 @@ export default function SessionBuilder({
     return students.find((s) => s.id === studentId)?.name || "Unknown";
   };
 
+  const goBack = () => {
+    if (
+      hasUnsavedChanges &&
+      !window.confirm("You have unsaved changes. Leave without saving?")
+    ) {
+      return;
+    }
+    navigate("/dashboard");
+  };
+
   if (loading) return <TableSkeleton />;
 
   if (isTemplate && !isHeadCoach) {
@@ -268,7 +328,7 @@ export default function SessionBuilder({
     <div>
       <div className="flex items-center gap-4 mb-6">
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={goBack}
           className="text-slate-400 hover:text-white transition"
         >
           &larr; Back
@@ -283,11 +343,31 @@ export default function SessionBuilder({
       </div>
 
       {isTemplate && (
-        <p className="text-sm text-slate-400 mb-6">
-          These groups, coach assignments, and notes are used as the starting
-          point for every new practice. Edit them here, then adjust per
-          practice as needed.
-        </p>
+        <div className="sticky top-0 z-10 bg-slate-900 rounded-xl border border-slate-800 p-4 mb-6">
+          <p className="text-sm text-slate-400 mb-3">
+            These groups, coach assignments, and notes are used as the starting
+            point for every new practice. Edit them here, then adjust per
+            practice as needed.
+          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm">
+              {hasUnsavedChanges ? (
+                <span className="text-yellow-400">
+                  Unsaved changes to group names or notes
+                </span>
+              ) : (
+                <span className="text-slate-500">All changes saved</span>
+              )}
+            </p>
+            <button
+              onClick={saveTemplateChanges}
+              disabled={saving || !hasUnsavedChanges}
+              className="w-full sm:w-auto px-5 py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-semibold"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
       )}
 
       {!isTemplate && (
@@ -374,7 +454,11 @@ export default function SessionBuilder({
                 <input
                   value={group.name}
                   onChange={(e) => updateGroupName(group.id, e.target.value)}
-                  onBlur={(e) => saveGroupName(group.id, e.target.value)}
+                  onBlur={
+                    isTemplate
+                      ? undefined
+                      : (e) => saveGroupName(group.id, e.target.value)
+                  }
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.currentTarget.blur();
@@ -406,7 +490,11 @@ export default function SessionBuilder({
                   placeholder="e.g. cornering drills, endurance ride, review shifting..."
                   value={group.notes || ""}
                   onChange={(e) => updateGroupNotes(group.id, e.target.value)}
-                  onBlur={(e) => saveGroupNotes(group.id, e.target.value)}
+                  onBlur={
+                    isTemplate
+                      ? undefined
+                      : (e) => saveGroupNotes(group.id, e.target.value)
+                  }
                   rows={2}
                   className="w-full text-sm"
                 />
